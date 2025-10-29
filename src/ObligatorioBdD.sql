@@ -38,7 +38,7 @@ CREATE TABLE career (
 
 CREATE TABLE login (
     mail VARCHAR(50) PRIMARY KEY,
-    password VARCHAR(32) NOT NULL CHECK ( CHAR_LENGTH(password) >= 8 ),
+    password VARCHAR(200) NOT NULL,
     FOREIGN KEY (mail) REFERENCES user(mail)
 );
 
@@ -64,27 +64,6 @@ CREATE TABLE studyRoom (
 	FOREIGN KEY (buildingName) REFERENCES building(buildingName)
 );
 
-<<<<<<< HEAD
-    CREATE TRIGGER validate_year_reservation
-    BEFORE INSERT ON reservation
-    FOR EACH ROW
-        BEGIN
-            IF NEW.date > DATE_ADD(NOW(), INTERVAL 7 DAY) OR NEW.date < CURDATE() THEN
-                SIGNAL SQLSTATE '45000'
-                SET MESSAGE_TEXT = 'La reserva no se puede hacer antes de la fecha de hoy ni para dentro de 7 dias';
-            END IF;
-
-        END;
-    DELIMITER ;
-
-/**/
-
-CREATE TABLE studyGroup (
-    studyGroupId INT PRIMARY KEY AUTO_INCREMENT,
-    studyGroupName VARCHAR(50) UNIQUE,
-    roomName VARCHAR(32),
-    reservationId INT NOT NULL,
-=======
 CREATE TABLE studyRoomAvailability (
 	studyRoomId INT,
 	shiftId INT,
@@ -97,23 +76,13 @@ CREATE TABLE studyRoomAvailability (
 CREATE TABLE studyGroup (
     studyGroupId INT PRIMARY KEY AUTO_INCREMENT,
     studyGroupName VARCHAR(50) NOT NULL,
->>>>>>> backAgos
     status ENUM('Activo', 'Inactivo') DEFAULT 'Activo',
     leader INT NOT NULL,
     FOREIGN KEY (leader) REFERENCES user(ci)
 );
 
-<<<<<<< HEAD
--- Hay que meter un minimo de integrantes en las salas, ya que una persona con una sala de 10 personas en las que hayan solo 3 personas es inutil
-
--- Primero se tiene que crear un grupo con tus compañeros y despues la reserva donde elegis uno de los grupos que hayas creado
-
-CREATE TABLE participantGroup(
-    studyGroupId INT,
-=======
 CREATE TABLE studyGroupParticipant (
 	studyGroupId INT,
->>>>>>> backAgos
     member INT,
     FOREIGN KEY (studyGroupId) REFERENCES studyGroup(studyGroupId),
     FOREIGN KEY (member) REFERENCES user(ci),
@@ -122,14 +91,16 @@ CREATE TABLE studyGroupParticipant (
 
 CREATE TABLE reservation (
 	reservationId INT PRIMARY KEY AUTO_INCREMENT,
+	reservationCreateDate DATE NOT NULL DEFAULT (CURRENT_DATE),
+    studyGroupId INT NOT NULL,
 	studyRoomId INT NOT NULL,
-	studyGroupId INT NOT NULL,
 	date DATE NOT NULL,
+    shiftId INT NOT NULL,
 	state ENUM('Activa', 'Cancelada', 'Sin asistencia', 'Finalizada') DEFAULT 'Activa',
+    FOREIGN KEY (studyGroupId) REFERENCES studyGroup(studyGroupId),
 	FOREIGN KEY (studyRoomId) REFERENCES studyRoom(studyRoomId),
-	FOREIGN KEY (studyGroupId) REFERENCES studyGroup(studyGroupId)
+    FOREIGN KEY (shiftId) REFERENCES shift(shiftid)
 );
-	
 
 CREATE TABLE groupRequest (
     studyGroupId INT,
@@ -148,17 +119,6 @@ CREATE TABLE student (
 	FOREIGN KEY (careerId) REFERENCES career(careerId)
 );
 
-<<<<<<< HEAD
-/************* Agreamos como primary id ***************/
-
-CREATE TABLE academicPlan (
-    academicPlanId INT PRIMARY KEY AUTO_INCREMENT,
-    planName YEAR,
-    facultyId INT,
-    careerName VARCHAR(100),
-    type ENUM('Grado', 'Posgrado') NOT NULL,
-    FOREIGN KEY (facultyId) REFERENCES faculty(facultyId)
-=======
 CREATE TABLE professor (
 	ci INT PRIMARY KEY,
 	FOREIGN KEY (ci) REFERENCES user(ci)
@@ -167,7 +127,6 @@ CREATE TABLE professor (
 CREATE TABLE administrator (
 	ci INT PRIMARY KEY,
 	FOREIGN KEY (ci) REFERENCES user(ci)
->>>>>>> backAgos
 );
 
 CREATE TABLE librarian (
@@ -259,10 +218,7 @@ INSERT INTO building VALUES
 ('Mullin', 'Cmdt. Braga 2745', 'Montevideo'),
 ('San José', 'Av. 8 de Octubre 2733', 'Montevideo'),
 ('Business School', 'Estero Bellaco 2771', 'Montevideo'),
-('Anexo Facultad de Enfermería', 'Av. Gral. J. Garibaldi 2831', 'Montevideo'),
-('Athanasius', 'Gral. Urquiza 2871', 'Montevideo'),
-('Campus Punta del Este', 'esquina Florencia Pda. 7 y 1/2', 'Punta del Este'),
-('Campus Salto', 'Artigas 1251', 'Salto');
+('Athanasius', 'Gral. Urquiza 2871', 'Montevideo');
 
 INSERT INTO shift VALUES
 (NULL, '08:00:00', '09:00:00'),
@@ -282,71 +238,23 @@ INSERT INTO shift VALUES
 
 INSERT INTO studyRoom VALUES
 (NULL, 'Sala 1', 'Central', 6, 'Libre'),
-(NULL, 'Sala 2', 'Central', 8, 'Libre'),
-(NULL, 'Sala 3', 'Central', 4, 'Libre'),
-(NULL, 'Sala 4', 'Central', 6, 'Libre'),
-(NULL, 'Sala 5', 'Central', 4, 'Posgrado'),
-(NULL, 'Sala 6', 'Central', 5, 'Posgrado'),
-(NULL, 'Sala 7', 'Central', 3, 'Docente'),
-(NULL, 'Sala 8', 'Central', 7, 'Docente'),
+(NULL, 'Sala 2', 'Central', 8, 'Posgrado'),
+(NULL, 'Sala 3', 'Central', 4, 'Docente'),
 (NULL, 'Sala 1', 'San Ignacio', 4, 'Libre'),
 (NULL, 'Sala 2', 'San Ignacio', 4, 'Posgrado'),
 (NULL, 'Sala 3', 'San Ignacio', 4, 'Docente'),
-(NULL, 'Sala 1', 'Mullin', 8, 'Libre'),
-(NULL, 'Sala 2', 'Mullin', 4, 'Libre'),
-(NULL, 'Sala 3', 'Mullin', 4, 'Posgrado'),
-(NULL, 'Sala 4', 'Mullin', 3, 'Docente'),
-(NULL, 'Sala 5', 'Mullin', 4, 'Docente'),
+(NULL, 'Sala 1', 'Mullin', 3, 'Libre'),
+(NULL, 'Sala 2', 'Mullin', 4, 'Posgrado'),
+(NULL, 'Sala 3', 'Mullin', 4, 'Docente'),
 (NULL, 'Sala 1', 'San José', 5, 'Libre'),
-(NULL, 'Sala 2', 'San José', 5, 'Libre'),
-(NULL, 'Sala 3', 'San José', 5, 'Libre'),
-(NULL, 'Sala 4', 'San José', 5, 'Libre'),
-(NULL, 'Sala 5', 'San José', 5, 'Libre'),
-(NULL, 'Sala 6', 'San José', 5, 'Libre'),
-(NULL, 'Sala 7', 'San José', 5, 'Docente'),
-(NULL, 'Sala 8', 'San José', 5, 'Docente'),
-(NULL, 'Sala 9', 'San José', 5, 'Docente'),
-(NULL, 'Sala 10', 'San José', 5, 'Docente'),
-(NULL, 'Sala 11', 'San José', 5, 'Docente'),
+(NULL, 'Sala 2', 'San José', 5, 'Posgrado'),
+(NULL, 'Sala 3', 'San José', 5, 'Docente'),
 (NULL, 'Sala 1', 'Business School', 6, 'Libre'),
-(NULL, 'Sala 2', 'Business School', 6, 'Libre'),
-(NULL, 'Sala 3', 'Business School', 6, 'Libre'),
-(NULL, 'Sala 4', 'Business School', 6, 'Libre'),
-(NULL, 'Sala 5', 'Business School', 6, 'Libre'),
-(NULL, 'Sala 6', 'Business School', 4, 'Posgrado'),
-(NULL, 'Sala 7', 'Business School', 4, 'Posgrado'),
-(NULL, 'Sala 8', 'Business School', 4, 'Posgrado'),
-(NULL, 'Sala 9', 'Business School', 4, 'Posgrado'),
-(NULL, 'Sala 10', 'Business School', 4, 'Posgrado'),
-(NULL, 'Sala 1', 'Anexo Facultad de Enfermería', 3, 'Posgrado'),
-(NULL, 'Sala 2', 'Anexo Facultad de Enfermería', 4, 'Posgrado'),
-(NULL, 'Sala 3', 'Anexo Facultad de Enfermería', 4, 'Docente'),
+(NULL, 'Sala 2', 'Business School', 6, 'Posgrado'),
+(NULL, 'Sala 3', 'Business School', 6, 'Docente'),
 (NULL, 'Sala 1', 'Athanasius', 5, 'Libre'),
-(NULL, 'Sala 2', 'Athanasius', 5, 'Libre'),
-(NULL, 'Sala 3', 'Athanasius', 5, 'Libre'),
-(NULL, 'Sala 4', 'Athanasius', 5, 'Libre'),
-(NULL, 'Sala 5', 'Athanasius', 5, 'Libre'),
-(NULL, 'Sala 6', 'Athanasius', 5, 'Posgrado'),
-(NULL, 'Sala 7', 'Athanasius', 5, 'Posgrado'),
-(NULL, 'Sala 8', 'Athanasius', 5, 'Posgrado'),
-(NULL, 'Sala 9', 'Athanasius', 5, 'Posgrado'),
-(NULL, 'Sala 10', 'Athanasius', 5, 'Posgrado'),
-(NULL, 'Sala 1', 'Campus Punta del Este', 4, 'Libre'),
-(NULL, 'Sala 2', 'Campus Punta del Este', 4, 'Libre'),
-(NULL, 'Sala 3', 'Campus Punta del Este', 3, 'Libre'),
-(NULL, 'Sala 4', 'Campus Punta del Este', 3, 'Libre'),
-(NULL, 'Sala 5', 'Campus Punta del Este', 6, 'Posgrado'),
-(NULL, 'Sala 6', 'Campus Punta del Este', 6, 'Posgrado'),
-(NULL, 'Sala 7', 'Campus Punta del Este', 5, 'Docente'),
-(NULL, 'Sala 8', 'Campus Punta del Este', 5, 'Docente'),
-(NULL, 'Sala 1', 'Campus Salto', 3, 'Libre'),
-(NULL, 'Sala 2', 'Campus Salto', 3, 'Libre'),
-(NULL, 'Sals 3', 'Campus Salto', 4, 'Libre'),
-(NULL, 'Sala 4', 'Campus Salto', 4, 'Libre'),
-(NULL, 'Sala 5', 'Campus Salto', 3, 'Posgrado'),
-(NULL, 'Sala 6', 'Campus Salto', 3, 'Posgrado'),
-(NULL, 'Sala 7', 'Campus Salto', 4, 'Docente'),
-(NULL, 'Sala 8', 'Campus Salto', 4, 'Docente');
+(NULL, 'Sala 2', 'Athanasius', 5, 'Posgrado'),
+(NULL, 'Sala 3', 'Athanasius', 5, 'Docente');
 
 SELECT * FROM studyroom;
 
@@ -398,12 +306,39 @@ INSERT INTO studyGroupParticipant VALUES
 (11, 52435831),
 (11, 54729274);
 
-/*
 INSERT INTO reservation VALUES
-(NULL, 3, 1, '13-04-2024', 'Finalizada'),
-(NULL, 3, 2, '15-04-2024', 'Finalizada');
--- (NULL, 6, 3, '15-04-2024')
-*/
+(NULL, '2024-04-26', 1, 4, '2024-04-29', 5, 'Finalizada'),
+(NULL, '2024-04-25', 2, 4, '2024-04-29', 6, 'Finalizada'),
+(NULL, '2024-05-15', 1, 4, '2024-05-17', 7, 'Finalizada'),
+(NULL, '2025-05-20', 5, 4, '2025-05-21', 9, 'Finalizada'),
+(NULL, '2025-06-07', 11, 7, '2025-06-09', 6, 'Finalizada'),
+(NULL, '2025-07-14', 4, 10, '2025-07-15', 5, 'Finalizada'),
+(NULL, '2025-10-27', 7, 7, '2025-10-31', 8, 'Activa');
+
+INSERT INTO student VALUES
+(55897692, 6),
+(55531973, 6),
+(57004718, 6),
+(55299080, 7),
+(56309531, 6),
+(56902752, 6),
+(59283629, 6),
+(52435831, 6),
+(54729274, 3),
+(52737428, 3),
+(57389261, 4);
+
+INSERT INTO professor VALUES
+(36907777),
+(34567836),
+(45615815),
+(45673829),
+(32749352);
+
+INSERT INTO administrator VALUES
+(12345678);
+
+
 
 /*INSERT INTO user
 VALUES(55531973, 'Santiago', 'Aguerre', 'santiago.aguerre@correo.ucu.edu.uy', NULL, NULL),
@@ -500,8 +435,4 @@ JOIN academicPlanParticipant ON user.ci = academicPlanParticipant.participantCi
 JOIN academicPlan ON academicPlanParticipant.academicPlanId = academicPlan.academicPlanId
 JOIN career ON academicPlan.careerName = career.careerName
 JOIN faculty ON career.facultyId = faculty.facultyId
-<<<<<<< HEAD
-GROUP BY career.careerName, faculty.facultyName;
-=======
 GROUP BY career.careerName, faculty.facultyName;*/
->>>>>>> backAgos

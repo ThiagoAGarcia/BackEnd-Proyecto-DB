@@ -1,8 +1,13 @@
 from datetime import datetime, timedelta, timezone
+
+import bcrypt
 from flask import Flask, jsonify, request
 from config import config
 import jwt
 import pymysql
+from encrypt import hash_pwd
+
+
 
 app = Flask(__name__)
 app.config.from_object(config['development'])
@@ -47,7 +52,85 @@ def getUsers():
         return jsonify({'users': users, 'desc': 'listo.'})
     except Exception as ex:
         return jsonify({'description': 'Error', 'error': str(ex)})
-    
+
+@app.route('/register', methods=['POST'])
+def postRegister():
+    try:
+        data = request.get_json()
+
+        ci = data.get('ci')
+        name = data.get('name')
+        lastname = data.get('lastname')
+        email = data.get('email')
+        password = data.get('password')
+        career_name = data.get('career')
+
+
+        if not all([ci, name, lastname, email, password, career_name]):
+            return jsonify({
+                'success': False,
+                'description': 'Faltan datos obligatorios'
+            }), 400
+
+
+        if len(password) <= 8:
+            return jsonify({
+                'success': False,
+                'description': 'La contraseña es muy corta (mínimo 9 caracteres)'
+            }), 400
+
+        cursor = connection.cursor()
+
+
+        cursor.execute("SELECT careerId FROM career WHERE careerName = %s", (career_name,))
+        result = cursor.fetchone()
+
+        if not result:
+            cursor.close()
+            return jsonify({
+                'success': False,
+                'description': f'No se encontró la carrera "{career_name}"'
+            }), 404
+
+        careerId = result[0]
+
+        passwordHash = hash_pwd(password)
+
+        # Insertar primero en user
+        cursor.execute(
+            "INSERT INTO user (ci, name, lastName, mail) VALUES (%s, %s, %s, %s)",
+            (ci, name, lastname, email)
+        )
+
+        # Insertar en login
+        cursor.execute(
+            "INSERT INTO login (mail, password) VALUES (%s, %s)",
+            (email, passwordHash)
+        )
+
+        # Insertar en student
+        cursor.execute(
+            "INSERT INTO student (ci, careerId) VALUES (%s, %s)",
+            (ci, careerId)
+        )
+
+        connection.commit()
+        cursor.close()
+
+        return jsonify({
+            'success': True,
+            'description': 'Usuario registrado correctamente'
+        }), 201
+
+    except Exception as ex:
+        connection.rollback()
+        return jsonify({
+            'success': False,
+            'description': 'Error al registrar el usuario',
+            'error': str(ex)
+        }), 500
+
+
 @app.route('/login', methods=['POST'])
 def postLogin():
     try:
@@ -56,43 +139,51 @@ def postLogin():
         password = data.get('password')
 
         cursor = connection.cursor()
-        SQL = "SELECT * FROM login WHERE mail = %s AND password = %s"
-        cursor.execute(SQL, (email, password,))
-        queryResults = cursor.fetchall()
+        cursor.execute("SELECT password FROM login WHERE mail = %s", (email,))
+        result = cursor.fetchone()
 
-        if len(queryResults) > 0:
-
-            now = datetime.now(timezone.utc)
-
-            access_payload = {
-                'email': email,
-                'type': 'access',
-                'exp': now + timedelta(minutes=30)
-            }
-            refresh_payload = {
-                'email': email,
-                'type': 'refresh',
-                'exp': now + timedelta(days=7)
-            }
-
-            access_token = jwt.encode(access_payload, SECRET_KEY, algorithm='HS256')
-            refresh_token = jwt.encode(refresh_payload, SECRET_KEY, algorithm='HS256')
-
-            return jsonify({
-                'success': True,
-                'access_token': access_token,
-                'refresh_token': refresh_token,
-                'description': 'Login correcto'
-            })
-
-        else:
+        if not result:
             return jsonify({
                 'success': False,
                 'description': 'Credenciales inválidas'
-            })
+            }), 401
+
+        stored_hash = result[0].encode() if isinstance(result[0], str) else result[0]
+
+        if not bcrypt.checkpw(password.encode(), stored_hash):
+            return jsonify({
+                'success': False,
+                'description': 'Credenciales inválidas'
+            }), 401
+
+        now = datetime.now(timezone.utc)
+        access_payload = {
+            'email': email,
+            'type': 'access',
+            'exp': now + timedelta(minutes=30)
+        }
+        refresh_payload = {
+            'email': email,
+            'type': 'refresh',
+            'exp': now + timedelta(days=7)
+        }
+
+        access_token = jwt.encode(access_payload, SECRET_KEY, algorithm='HS256')
+        refresh_token = jwt.encode(refresh_payload, SECRET_KEY, algorithm='HS256')
+
+        return jsonify({
+            'success': True,
+            'access_token': access_token,
+            'refresh_token': refresh_token,
+            'description': 'Login correcto'
+        }), 200
 
     except Exception as ex:
-        return jsonify({'description': 'Error', 'error': str(ex)})
+        return jsonify({
+            'success': False,
+            'description': 'Error en el login',
+            'error': str(ex)
+        }), 500
 if __name__ == '__main__':
     app.register_error_handler(404, pageNotFound)
     app.run()
