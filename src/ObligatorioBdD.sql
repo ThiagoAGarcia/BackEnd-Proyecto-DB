@@ -26,15 +26,18 @@ CREATE TABLE career (
     FOREIGN KEY (facultyId) REFERENCES faculty(facultyId)
 );
 
-	CREATE TRIGGER validate_year_academicPlan
-    	BEFORE INSERT ON career
-    	FOR EACH ROW
-    	BEGIN
-        	IF NEW.planYear <= 1985 OR NEW.planYear > YEAR(CURDATE()) THEN
-            		SIGNAL SQLSTATE '45000'
-            		SET MESSAGE_TEXT = 'El año del plan debe estar entre 1985 y el año actual.';
-        	END IF;
-    	END;
+	DELIMITER $$
+    CREATE TRIGGER validate_year_academicPlan
+    BEFORE INSERT ON career
+    FOR EACH ROW
+    BEGIN
+    IF NEW.planYear <= 1985 OR NEW.planYear > YEAR(CURDATE()) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'El año del plan debe estar entre 1985 y el año actual.';
+    END IF;
+    END$$
+    DELIMITER ;
+
 
 CREATE TABLE login (
     mail VARCHAR(50) PRIMARY KEY,
@@ -64,14 +67,14 @@ CREATE TABLE studyRoom (
 	FOREIGN KEY (buildingName) REFERENCES building(buildingName)
 );
 
-CREATE TABLE studyRoomAvailability (
+/*CREATE TABLE studyRoomAvailability (
 	studyRoomId INT,
 	shiftId INT,
 	isAvailable BOOLEAN DEFAULT TRUE,
 	FOREIGN KEY (studyRoomId) REFERENCES studyRoom(studyRoomId),
 	FOREIGN KEY (shiftId) REFERENCES shift(shiftId),
 	PRIMARY KEY (studyRoomId, shiftId)
-);
+);*/
 
 CREATE TABLE studyGroup (
     studyGroupId INT PRIMARY KEY AUTO_INCREMENT,
@@ -99,13 +102,14 @@ CREATE TABLE reservation (
 	state ENUM('Activa', 'Cancelada', 'Sin asistencia', 'Finalizada') DEFAULT 'Activa',
     FOREIGN KEY (studyGroupId) REFERENCES studyGroup(studyGroupId),
 	FOREIGN KEY (studyRoomId) REFERENCES studyRoom(studyRoomId),
-    FOREIGN KEY (shiftId) REFERENCES shift(shiftid)
+    FOREIGN KEY (shiftId) REFERENCES shift(shiftId)
 );
 
 CREATE TABLE groupRequest (
     studyGroupId INT,
 	receiver INT,
 	status ENUM('Aceptada', 'Pendiente', 'Rechazada') DEFAULT 'Pendiente',
+    isValid BOOLEAN DEFAULT TRUE,
     requestDate DATETIME DEFAULT CURRENT_TIMESTAMP,
 	FOREIGN KEY (studyGroupId) REFERENCES studyGroup(studyGroupId),
 	FOREIGN KEY (receiver) REFERENCES user(ci),
@@ -175,8 +179,6 @@ INSERT INTO faculty VALUES
 (NULL, 'Facultad de la Salud'),
 (NULL, 'Facultad de Ciencias Empresariales'),
 (NULL, 'Facultad de Ingeniería y Tecnologías');
-
-SELECT * FROM faculty;
 
 INSERT INTO career VALUES
 (NULL, 'Psicología', 2024, 1, 'Grado'),
@@ -256,8 +258,6 @@ INSERT INTO studyRoom VALUES
 (NULL, 'Sala 2', 'Athanasius', 5, 'Posgrado'),
 (NULL, 'Sala 3', 'Athanasius', 5, 'Docente');
 
-SELECT * FROM studyroom;
-
 INSERT INTO studyGroup VALUES
 (NULL, 'Equipo Programación I', 'Inactivo', 55897692),
 (NULL, 'Grupo Prog I', 'Inactivo', 55531973),
@@ -270,8 +270,6 @@ INSERT INTO studyGroup VALUES
 (NULL, 'Deberes de inglés', 'Activo', 57004718),
 (NULL, 'Macroeconomía deberes', 'Activo', 52737428),
 (NULL, 'Física I preparación parcial', 'Activo', 57389261);
-
-SELECT * FROM studyGroup;
 
 INSERT INTO studyGroupParticipant VALUES
 (1, 56309531),
@@ -338,6 +336,61 @@ INSERT INTO professor VALUES
 INSERT INTO administrator VALUES
 (12345678);
 
+INSERT INTO librarian VALUES
+(32124436, 7);
+
+/* Agregamos que el groupRequest tenga un boolean de valido o invalido (esto en caso que se cancele la invitacion) */
+
+INSERT INTO groupRequest VALUES
+(1, 56309531, 'Aceptada', FALSE, '2024-04-01 10:00:00'),
+(1, 59283629, 'Aceptada', FALSE,'2024-04-01 10:05:00'),
+(1, 54729274, 'Aceptada', FALSE,'2024-04-01 10:10:00'),
+(2, 57004718, 'Aceptada', FALSE,'2024-04-02 11:00:00'),
+(2, 56902752, 'Aceptada', FALSE,'2024-04-02 11:05:00'),
+(2, 52435831, 'Aceptada', FALSE,'2024-04-02 11:10:00'),
+(3, 55299080, 'Aceptada', FALSE,'2024-04-03 12:00:00'),
+(3, 56902752, 'Aceptada', FALSE,'2024-04-03 12:05:00'),
+(3, 59283629, 'Aceptada', FALSE,'2024-04-03 12:10:00'),
+(3, 55897692, 'Aceptada', FALSE,'2024-04-03 12:15:00'),
+(4, 55531973, 'Aceptada', FALSE,'2024-04-04 13:00:00'),
+(4, 56902752, 'Aceptada', FALSE,'2024-04-04 13:05:00'),
+(4, 56309531, 'Aceptada', FALSE,'2024-04-04 13:10:00'),
+(4, 55299080, 'Aceptada', FALSE,'2024-04-04 13:15:00'),
+(5, 52737428, 'Aceptada', FALSE,'2024-04-05 14:00:00'),
+(5, 57389261, 'Aceptada', FALSE,'2024-04-05 14:05:00'),
+(6, 55897692, 'Aceptada', FALSE,'2024-04-06 15:00:00'),
+(6, 55531973, 'Aceptada', FALSE,'2024-04-06 15:05:00'),
+(6, 56902752, 'Aceptada', FALSE,'2024-04-06 15:10:00'),
+(6, 57389261, 'Aceptada', FALSE,'2024-04-06 15:15:00'),
+(7, 55531973, 'Aceptada', FALSE,'2024-04-07 16:00:00'),
+(7, 57004718, 'Aceptada', FALSE,'2024-04-07 16:05:00'),
+(8, 54729274, 'Aceptada', FALSE,'2024-04-08 17:00:00'),
+(8, 34567836, 'Aceptada', FALSE,'2024-04-08 17:05:00'),
+(8, 45673829, 'Aceptada', FALSE,'2024-04-08 17:10:00'),
+(9, 56902752, 'Aceptada', FALSE,'2024-04-09 18:00:00'),
+(9, 55299080, 'Aceptada', FALSE,'2024-04-09 18:05:00'),
+(9, 52435831, 'Aceptada', FALSE,'2024-04-09 18:10:00'),
+(10, 54729274, 'Aceptada', FALSE,'2024-04-10 19:00:00'),
+(11, 52435831, 'Aceptada', FALSE,'2024-04-11 20:00:00'),
+(11, 54729274, 'Aceptada', FALSE,'2024-04-11 20:05:00'),
+(1, 32749352, 'Pendiente', TRUE,'2025-10-01 12:00:00'),
+(2, 32124436, 'Pendiente', TRUE,'2025-09-20 09:30:00'),
+(4, 52737428, 'Pendiente', TRUE,'2025-08-15 14:45:00'),
+(3, 54729274, 'Rechazada', FALSE,'2024-05-01 14:00:00'),
+(5, 55531973, 'Rechazada', FALSE,'2024-05-02 15:30:00');
+
+INSERT INTO sanction VALUES
+(NULL, 55531973, 32124436, 'Ruidoso', '2025-06-01', '2025-08-01'),
+(NULL, 56902752, 32124436, 'Ocupar', '2025-07-15', '2025-09-15');
+
+/*INSERT INTO studyRoomAvailability VALUES
+(4, 5, TRUE),
+(4, 6, TRUE),
+(4, 7, TRUE),
+(4, 9, TRUE),
+(7, 6, TRUE),
+(10, 5, TRUE),
+(7, 8, FALSE);*/
 
 
 /*INSERT INTO user
