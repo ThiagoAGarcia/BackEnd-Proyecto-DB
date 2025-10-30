@@ -67,15 +67,6 @@ CREATE TABLE studyRoom (
 	FOREIGN KEY (buildingName) REFERENCES building(buildingName)
 );
 
-/*CREATE TABLE studyRoomAvailability (
-	studyRoomId INT,
-	shiftId INT,
-	isAvailable BOOLEAN DEFAULT TRUE,
-	FOREIGN KEY (studyRoomId) REFERENCES studyRoom(studyRoomId),
-	FOREIGN KEY (shiftId) REFERENCES shift(shiftId),
-	PRIMARY KEY (studyRoomId, shiftId)
-);*/
-
 CREATE TABLE studyGroup (
     studyGroupId INT PRIMARY KEY AUTO_INCREMENT,
     studyGroupName VARCHAR(50) NOT NULL,
@@ -90,30 +81,6 @@ CREATE TABLE studyGroupParticipant (
     FOREIGN KEY (studyGroupId) REFERENCES studyGroup(studyGroupId),
     FOREIGN KEY (member) REFERENCES user(ci),
     PRIMARY KEY (studyGroupId, member)
-);
-
-CREATE TABLE reservation (
-	reservationId INT PRIMARY KEY AUTO_INCREMENT,
-	reservationCreateDate DATE NOT NULL DEFAULT (CURRENT_DATE),
-    studyGroupId INT NOT NULL,
-	studyRoomId INT NOT NULL,
-	date DATE NOT NULL,
-    shiftId INT NOT NULL,
-	state ENUM('Activa', 'Cancelada', 'Sin asistencia', 'Finalizada') DEFAULT 'Activa',
-    FOREIGN KEY (studyGroupId) REFERENCES studyGroup(studyGroupId),
-	FOREIGN KEY (studyRoomId) REFERENCES studyRoom(studyRoomId),
-    FOREIGN KEY (shiftId) REFERENCES shift(shiftId)
-);
-
-CREATE TABLE groupRequest (
-    studyGroupId INT,
-	receiver INT,
-	status ENUM('Aceptada', 'Pendiente', 'Rechazada') DEFAULT 'Pendiente',
-    isValid BOOLEAN DEFAULT TRUE,
-    requestDate DATETIME DEFAULT CURRENT_TIMESTAMP,
-	FOREIGN KEY (studyGroupId) REFERENCES studyGroup(studyGroupId),
-	FOREIGN KEY (receiver) REFERENCES user(ci),
-    PRIMARY KEY (studyGroupId, receiver)
 );
 
 CREATE TABLE student (
@@ -135,9 +102,33 @@ CREATE TABLE administrator (
 
 CREATE TABLE librarian (
 	ci INT PRIMARY KEY,
-	assignedReservationId INT,
-	FOREIGN KEY (ci) REFERENCES user(ci),
-	FOREIGN KEY (assignedReservationId) REFERENCES reservation(reservationId)
+	FOREIGN KEY (ci) REFERENCES user(ci)
+);
+
+CREATE TABLE reservation (
+    studyGroupId INT NOT NULL,
+	studyRoomId INT NOT NULL,
+	date DATE NOT NULL,
+    shiftId INT NOT NULL,
+    assignedLibrarian INT,
+    reservationCreateDate DATE NOT NULL DEFAULT (CURRENT_DATE),
+	state ENUM('Activa', 'Cancelada', 'Sin asistencia', 'Finalizada') DEFAULT 'Activa',
+    FOREIGN KEY (studyGroupId) REFERENCES studyGroup(studyGroupId),
+	FOREIGN KEY (studyRoomId) REFERENCES studyRoom(studyRoomId),
+    FOREIGN KEY (shiftId) REFERENCES shift(shiftId),
+    FOREIGN KEY (assignedLibrarian) REFERENCES librarian(ci),
+    PRIMARY KEY (studyGroupId, studyRoomId, date, shiftId)
+);
+
+CREATE TABLE groupRequest (
+    studyGroupId INT,
+	receiver INT,
+	status ENUM('Aceptada', 'Pendiente', 'Rechazada') DEFAULT 'Pendiente',
+    isValid BOOLEAN DEFAULT TRUE,
+    requestDate DATETIME DEFAULT CURRENT_TIMESTAMP,
+	FOREIGN KEY (studyGroupId) REFERENCES studyGroup(studyGroupId),
+	FOREIGN KEY (receiver) REFERENCES user(ci),
+    PRIMARY KEY (studyGroupId, receiver)
 );
 
 CREATE TABLE sanction (
@@ -304,15 +295,6 @@ INSERT INTO studyGroupParticipant VALUES
 (11, 52435831),
 (11, 54729274);
 
-INSERT INTO reservation VALUES
-(NULL, '2024-04-26', 1, 4, '2024-04-29', 5, 'Finalizada'),
-(NULL, '2024-04-25', 2, 4, '2024-04-29', 6, 'Finalizada'),
-(NULL, '2024-05-15', 1, 4, '2024-05-17', 7, 'Finalizada'),
-(NULL, '2025-05-20', 5, 4, '2025-05-21', 9, 'Finalizada'),
-(NULL, '2025-06-07', 11, 7, '2025-06-09', 6, 'Finalizada'),
-(NULL, '2025-07-14', 4, 10, '2025-07-15', 5, 'Finalizada'),
-(NULL, '2025-10-27', 7, 7, '2025-10-31', 8, 'Activa');
-
 INSERT INTO student VALUES
 (55897692, 6),
 (55531973, 6),
@@ -337,9 +319,16 @@ INSERT INTO administrator VALUES
 (12345678);
 
 INSERT INTO librarian VALUES
-(32124436, 7);
+(32124436);
 
-/* Agregamos que el groupRequest tenga un boolean de valido o invalido (esto en caso que se cancele la invitacion) */
+INSERT INTO reservation VALUES
+(1, 4, '2024-04-29', 5, 32124436, '2024-04-26', 'Finalizada'),
+(2, 4, '2024-04-29', 6, 32124436, '2024-04-25', 'Finalizada'),
+(1, 4, '2024-05-17', 7, 32124436, '2024-05-15', 'Finalizada'),
+(5, 4, '2025-05-21', 9, 32124436, '2025-05-20', 'Finalizada'),
+(11, 7, '2025-06-09', 6, 32124436, '2025-06-07', 'Finalizada'),
+(4, 10, '2025-07-15', 5, 32124436, '2025-07-14', 'Finalizada'),
+(7, 7, '2025-10-31', 8, 32124436, '2025-10-27', 'Activa');
 
 INSERT INTO groupRequest VALUES
 (1, 56309531, 'Aceptada', FALSE, '2024-04-01 10:00:00'),
@@ -383,15 +372,30 @@ INSERT INTO sanction VALUES
 (NULL, 55531973, 32124436, 'Ruidoso', '2025-06-01', '2025-08-01'),
 (NULL, 56902752, 32124436, 'Ocupar', '2025-07-15', '2025-09-15');
 
-/*INSERT INTO studyRoomAvailability VALUES
-(4, 5, TRUE),
-(4, 6, TRUE),
-(4, 7, TRUE),
-(4, 9, TRUE),
-(7, 6, TRUE),
-(10, 5, TRUE),
-(7, 8, FALSE);*/
+-- Consulta de que salas estan libres x dia
 
+SELECT studyRoom.roomName, s.startTime, s.endTime
+FROM studyRoom
+JOIN reservation r on studyRoom.studyRoomId = r.studyRoomId
+JOIN shift s on r.shiftId = s.shiftId
+WHERE studyRoom.studyRoomId NOT IN (
+    SELECT studyRoom.roomName, s.startTime, s.endTime
+    FROM studyRoom
+    JOIN reservation r on studyRoom.studyRoomId = r.studyRoomId
+    JOIN shift s on r.shiftId = s.shiftId
+    WHERE r.date = '2024-04-29'
+);
+
+SELECT studyRoom.roomName, s.startTime, s.endTime
+FROM studyRoom
+JOIN reservation r on studyRoom.studyRoomId = r.studyRoomId
+JOIN shift s on r.shiftId = s.shiftId
+WHERE r.date = '2024-04-29';
+
+SELECT studyRoom.roomName, s.startTime, s.endTime
+FROM studyRoom
+LEFT JOIN reservation r on studyRoom.studyRoomId = r.studyRoomId
+JOIN shift s on r.shiftId = s.shiftId
 
 /*INSERT INTO user
 VALUES(55531973, 'Santiago', 'Aguerre', 'santiago.aguerre@correo.ucu.edu.uy', NULL, NULL),
