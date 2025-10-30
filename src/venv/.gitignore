@@ -1,0 +1,69 @@
+# -----------------------------
+# Python
+# -----------------------------
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pyc
+*.env
+*.venv
+
+# -----------------------------
+# Virtual Environment
+# -----------------------------
+venv/
+.venv/
+env/
+
+# -----------------------------
+# Flask / Config / Secrets
+# -----------------------------
+instance/
+*.sqlite
+*.db
+*.sqlite3
+*.env
+.env.local
+.env.*.local
+*.log
+
+# -----------------------------
+# MySQL / DB
+# -----------------------------
+mysql_data/
+*.sql~
+
+# -----------------------------
+# Docker
+# -----------------------------
+docker-compose.override.yml
+*.dockerignore
+*.pid
+*.sock
+
+# -----------------------------
+# IDE / Editor
+# -----------------------------
+.vscode/
+.idea/
+*.swp
+*.swo
+*.sublime-project
+*.sublime-workspace
+
+# -----------------------------
+# OS
+# -----------------------------
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# -----------------------------
+# Python bytecode / caches
+# -----------------------------
+*.pytest_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/

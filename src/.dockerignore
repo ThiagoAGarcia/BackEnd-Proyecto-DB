@@ -1,0 +1,22 @@
+# Docker
+Dockerfile
+.dockerignore
+
+# Git
+.git
+.gitignore
+
+# Logs
+*.log
+
+# Python
+__pycache__/
+*.pyc
+
+# Testing and examples
+tests/
+examples/
+
+# virtualenv
+venv/
+.env
