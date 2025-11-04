@@ -1,7 +1,5 @@
 DROP DATABASE IF EXISTS ObligatorioBDD;
-CREATE DATABASE ObligatorioBDD;
-CHARACTER SET utf8mb4
-COLLATE utf8mb4_unicode_ci;
+CREATE DATABASE ObligatorioBDD CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE ObligatorioBDD;
 
 CREATE TABLE user (
