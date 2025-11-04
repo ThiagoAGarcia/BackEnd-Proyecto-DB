@@ -462,6 +462,7 @@ def newReservation():
         }), 500
          
 @app.route('/user/<ci>&<groupId>', methods=['GET'])
+@token_required
 def getGroupUser(ci, groupId):
     try:
         cursor = connection.cursor(DictCursor)
