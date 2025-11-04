@@ -5,6 +5,44 @@ import jwt
 from encrypt import hash_pwd
 from config import config
 from db import connection
+from functools import wraps
+from pymysql.cursors import DictCursor
+
+
+
+def token_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        token = None
+        
+        if 'Authorization' in request.headers:
+            auth_header = request.headers['Authorization']
+            if auth_header.startswith('Bearer '):
+                token = auth_header.split(' ')[1]
+
+        if not token:
+            return jsonify({
+                'success': False,
+                'description': 'Token requerido'
+            }), 401
+
+        try:
+            data = jwt.decode(token, SECRET_KEY, algorithms=['HS256'])
+            
+            request.user = data['role']
+        except jwt.ExpiredSignatureError:
+            return jsonify({
+                'success': False,
+                'description': 'El token ha expirado'
+            }), 401
+        except jwt.InvalidTokenError:
+            return jsonify({
+                'success': False,
+                'description': 'Token inválido'
+            }), 401
+
+        return f(*args, **kwargs)
+    return decorated
 
 app = Flask(__name__)
 
@@ -25,7 +63,45 @@ SECRET_KEY = 'JWT_SECRET_KEY=dIeocMZ1BzPxMcgmkLLPweME31lpx4XP3bsAXpqgt3SLrpKF2a0
 def pageNotFound(error):
     return "<h1>La página que buscas no existe.</h1>"
 
+
+@app.route('/user/<mail>/sanctions', methods=['GET'])
+@token_required
+def getSanctionsUser(mail):
+    try:
+        cursor = connection.cursor(DictCursor)
+        cursor.execute("""
+            SELECT 
+                u.mail, 
+                s.description, 
+                GREATEST(DATEDIFF(s.endDate, CURRENT_DATE), 0) AS dias_restantes, 
+                s.startDate, 
+                s.endDate
+            FROM sanction s
+            JOIN user u ON s.ci = u.ci
+            WHERE u.mail = %s
+        """, (mail,))
+
+        results = cursor.fetchall()
+        cursor.close()
+
+        sanctions = []
+        for row in results:
+            sanctions.append({
+                'mail': row['mail'],
+                'description': row['description'],
+                'dias_restantes': row['dias_restantes'],
+                'startDate': row['startDate'],
+                'endDate': row['endDate']
+            })
+
+        return jsonify({'sanctions': sanctions, 'success': True}), 200
+
+    except Exception as ex:
+        return jsonify({'description': 'Error', 'error': str(ex)}), 500
+
+    
 @app.route('/careerInsert', methods=['POST'])
+@token_required
 def createCareer():
     try:
         data = request.get_json()
@@ -68,22 +144,45 @@ def createCareer():
         }), 500
 
 
-@app.route('/user/<careerID>', methods = ['GET'])
+@app.route('/user/<careerID>', methods=['GET'])
+@token_required
 def getUserByCareer(careerID):
     try:
-        cursor = connection.cursor()
-        SQL = "SELECT name, lastName FROM user WHERE careerID = '{0}'".format(careerID)
-        cursor.execute(SQL)
-        queryResults = cursor.fetchone()
-        if queryResults != None:
-           user = {'name': queryResults[0], 'lastName': queryResults[1]}
-           return jsonify ({'user': user, 'message': 'Usuarios.'}) 
+        cursor = connection.cursor(DictCursor)
+        SQL = """
+            SELECT u.name, u.lastName
+            FROM user u
+            JOIN student s ON u.ci = s.ci
+            WHERE s.careerId = %s
+        """
+        cursor.execute(SQL, (careerID,))
+        queryResults = cursor.fetchall()
+        cursor.close()
+
+        if queryResults:
+            users = [{'name': row['name'], 'lastName': row['lastName']} for row in queryResults]
+            return jsonify({
+                'success': True,
+                'users': users,
+                'message': 'Usuarios encontrados.'
+            }), 200
         else:
-            return jsonify({'message': 'No existen.'})
+            return jsonify({
+                'success': False,
+                'message': 'No existen usuarios para esa carrera.'
+            }), 404
+
     except Exception as ex:
-        return jsonify({'description': 'Error', 'error': str(ex)})
+        return jsonify({
+            'success': False,
+            'description': 'Error al obtener usuarios por carrera',
+            'error': str(ex)
+        }), 500
+
+
 
 @app.route('/user', methods=['GET'])
+@token_required
 def getUsers():
     try:
         cursor = connection.cursor()
@@ -98,6 +197,7 @@ def getUsers():
         return jsonify({'description': 'Error', 'error': str(ex)})
 
 @app.route('/career', methods=['GET'])
+@token_required
 def getCareers():
     try:
         cursor = connection.cursor()
@@ -122,7 +222,6 @@ def getCareers():
 
 
 @app.route('/register', methods=['POST'])
-
 def postRegister():
     try:
         data = request.get_json()
@@ -134,14 +233,14 @@ def postRegister():
         password = data.get('password')
         career_name = data.get('career')
 
-
+        # Validar datos obligatorios
         if not all([ci, name, lastname, email, password, career_name]):
             return jsonify({
                 'success': False,
                 'description': 'Faltan datos obligatorios'
             }), 400
 
-
+        # Validar longitud de contraseña
         if len(password) <= 8:
             return jsonify({
                 'success': False,
@@ -150,7 +249,7 @@ def postRegister():
 
         cursor = connection.cursor()
 
-
+        # Buscar carrera
         cursor.execute("SELECT careerId FROM career WHERE careerName = %s", (career_name,))
         result = cursor.fetchone()
 
@@ -158,10 +257,10 @@ def postRegister():
             cursor.close()
             return jsonify({
                 'success': False,
-                'description': f'No se encontró la carrera "{career_name}"'
+                'description': f'No se encontró la carrera \"{career_name}\"'
             }), 404
 
-        careerId = result[0]
+        careerId = result['careerId']
 
         passwordHash = hash_pwd(password)
 
@@ -193,6 +292,7 @@ def postRegister():
 
     except Exception as ex:
         connection.rollback()
+        print("❌ ERROR EN /register:", ex)
         return jsonify({
             'success': False,
             'description': 'Error al registrar el usuario',
@@ -207,52 +307,245 @@ def postLogin():
         email = data.get('email')
         password = data.get('password')
 
+        if not email or not password:
+            return jsonify({
+                'success': False,
+                'description': 'Faltan email o contraseña'
+            }), 400
+
         cursor = connection.cursor()
+
+        # Buscar el hash de la contraseña
         cursor.execute("SELECT password FROM login WHERE mail = %s", (email,))
         result = cursor.fetchone()
 
         if not result:
-            return jsonify({
-                'success': False,
-                'description': 'Credenciales inválidas'
-            }), 401
+            cursor.close()
+            return jsonify({'success': False, 'description': 'Credenciales inválidas'}), 401
 
-        stored_hash = result[0].encode() if isinstance(result[0], str) else result[0]
+        stored_hash = result['password']
+        if isinstance(stored_hash, str):
+            stored_hash = stored_hash.encode()
 
+        # Verificar contraseña
         if not bcrypt.checkpw(password.encode(), stored_hash):
-            return jsonify({
-                'success': False,
-                'description': 'Credenciales inválidas'
-            }), 401
+            cursor.close()
+            return jsonify({'success': False, 'description': 'Credenciales inválidas'}), 401
 
+        # Obtener CI del usuario
+        cursor.execute("SELECT ci FROM user WHERE mail = %s", (email,))
+        ci_result = cursor.fetchone()
+        if not ci_result:
+            cursor.close()
+            return jsonify({'success': False, 'description': 'Usuario no encontrado'}), 404
+
+        ci = ci_result['ci']
+
+        # Determinar tipo de usuario
+        role = None
+        tables = ['student', 'professor', 'librarian', 'administrator']
+        for table in tables:
+            cursor.execute(f"SELECT ci FROM {table} WHERE ci = %s", (ci,))
+            if cursor.fetchone():
+                role = table
+                break
+        if not role:
+            role = 'unknown'
+
+        
         now = datetime.now(timezone.utc)
         access_payload = {
             'email': email,
-            'type': 'access',
+            'ci': ci,
+            'role': role,
             'exp': now + timedelta(minutes=30)
-        }
-        refresh_payload = {
-            'email': email,
-            'type': 'refresh',
-            'exp': now + timedelta(days=7)
         }
 
         access_token = jwt.encode(access_payload, SECRET_KEY, algorithm='HS256')
-        refresh_token = jwt.encode(refresh_payload, SECRET_KEY, algorithm='HS256')
+
+        cursor.close()
 
         return jsonify({
             'success': True,
             'access_token': access_token,
-            'refresh_token': refresh_token,
+            'role': role,
             'description': 'Login correcto'
         }), 200
 
     except Exception as ex:
+        print("ERROR EN /login:", ex)
         return jsonify({
             'success': False,
             'description': 'Error en el login',
             'error': str(ex)
         }), 500
+
+
+@app.route('/newReservation', methods=['POST'])
+@token_required
+def newReservation():
+    try:
+        data = request.get_json()
+        studyGroupID = data.get('StudyGroupID')
+        studyRoomId = data.get('studyRoomId')
+        date = data.get('date')
+        shiftId = data.get('shiftId')
+        reservationCreateDate = datetime.now()
+        state = 'Activa'
+        
+        if not all([studyGroupID, studyRoomId, date, shiftId]):
+            return jsonify({
+                'success': False,
+                'description': 'Faltan datos obligatorios'
+            }), 400
+
+        
+        cursor = connection.cursor()
+            
+        if datetime.strptime(date, "%Y-%m-%d").date() < datetime.now().date():
+            cursor.close()
+            return jsonify({
+                'success': False,
+                'description': 'No se puede reservar para una fecha que ya pasó'
+            }), 400
+            
+        
+        cursor.execute("SELECT studyGroupId FROM studyGroup WHERE studyGroupId = %s", (studyGroupID,))
+        result = cursor.fetchone()
+        if not result:
+            cursor.close()
+            return jsonify({
+                'success': False,
+                'description': f'No se encontró el grupo \"{studyGroupID}\"'
+            }), 404 
+        
+    
+        cursor.execute("SELECT studyRoomId FROM studyRoom WHERE studyRoomId = %s", (studyRoomId,))
+        result = cursor.fetchone()
+        if not result:
+            cursor.close()
+            return jsonify({
+                'success': False,
+                'description': f'No se encontró la sala \"{studyRoomId}\"'
+            }), 404 
+        
+    
+        cursor.execute("SELECT shiftId FROM shift WHERE shiftId = %s", (shiftId,))
+        result = cursor.fetchone()
+        if not result:
+            cursor.close()
+            return jsonify({
+                'success': False,
+                'description': f'No se encontró el turno \"{shiftId}\"'
+            }), 404 
+        
+        
+        cursor.execute("""
+            INSERT INTO reservation 
+                (studyGroupId, studyRoomId, date, shiftId, assignedLibrarian, reservationCreateDate, state)
+            VALUES (%s, %s, %s, %s, null, %s, %s)
+        """, (studyGroupID, studyRoomId, date, shiftId, reservationCreateDate.date(), state))
+        
+        connection.commit()
+        cursor.close()
+        
+        return jsonify({
+            'success': True,
+            'description': 'Reservación creada exitosamente'
+        }), 201
+        
+    except Exception as ex:
+         return jsonify({
+            'success': False,
+            'description': 'Error en la creación de la reserva',
+            'error': str(ex)
+        }), 500
+         
+@app.route('/user/<ci>&<groupId>', methods=['GET'])
+def getGroupUser(ci, groupId):
+    try:
+        cursor = connection.cursor(DictCursor)
+
+   
+        ci = int(ci)
+        groupId = int(groupId)
+
+        
+        cursor.execute("""
+            SELECT 1
+            FROM studyGroup sg
+            LEFT JOIN studyGroupParticipant sgp 
+                ON sg.studyGroupId = sgp.studyGroupId
+            WHERE sg.studyGroupId = %s
+              AND (sg.leader = %s OR sgp.member = %s)
+        """, (groupId, ci, ci))
+        result = cursor.fetchone()
+
+        if not result:
+            cursor.close()
+            return jsonify({
+                'success': False,
+                'description': 'No eres miembro del grupo'
+            }), 404
+
+       
+        cursor.execute("""
+            SELECT 
+                sg.studyGroupName,
+                sg.status,
+                sg.leader,
+                u.name AS leaderName,
+                u.mail AS leaderMail,
+                p.member,
+                u2.name AS memberName,
+                u2.mail AS memberMail
+            FROM studyGroup sg
+            JOIN user u ON sg.leader = u.ci
+            LEFT JOIN studyGroupParticipant p ON sg.studyGroupId = p.studyGroupId
+            LEFT JOIN user u2 ON p.member = u2.ci
+            WHERE sg.studyGroupId = %s
+        """, (groupId,))
+        results = cursor.fetchall()
+        cursor.close()
+
+        if not results:
+            return jsonify({
+                'success': False,
+                'description': f'No se encontró el grupo con ID {groupId}'
+            }), 404
+
+        
+        group_info = {
+            'studyGroupName': results[0]['studyGroupName'],
+            'status': results[0]['status'],
+            'leader': {
+                'ci': results[0]['leader'],
+                'name': results[0]['leaderName'],
+                'mail': results[0]['leaderMail']
+            },
+            'members': []
+        }
+
+        for row in results:
+            if row['member'] is not None:
+                group_info['members'].append({
+                    'ci': row['member'],
+                    'name': row['memberName'],
+                    'mail': row['memberMail']
+                })
+
+        return jsonify({
+            'success': True,
+            'grupo': group_info
+        }), 200
+
+    except Exception as ex:
+        return jsonify({
+            'success': False,
+            'description': 'Error al obtener la información del grupo',
+            'error': str(ex)
+        }), 500
+
 
 if __name__ == '__main__':
     app.register_error_handler(404, pageNotFound)
