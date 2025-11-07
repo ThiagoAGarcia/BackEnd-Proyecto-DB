@@ -30,6 +30,7 @@ def token_required(f):
             data = jwt.decode(token, SECRET_KEY, algorithms=['HS256'])
             
             request.user = data['role']
+            request.ci = data['ci']
         except jwt.ExpiredSignatureError:
             return jsonify({
                 'success': False,
@@ -49,10 +50,12 @@ app = Flask(__name__)
 app.config['JSON_AS_ASCII'] = False
 app.config['JSONIFY_PRETTYPRINT_REGULAR'] = True
 
+
 @app.after_request
 def set_charset(response):
     response.headers["Content-Type"] = "application/json; charset=utf-8"
     return response
+
 
 
 app.config.from_object(config['development'])
@@ -546,7 +549,56 @@ def getGroupUser(ci, groupId):
             'description': 'Error al obtener la información del grupo',
             'error': str(ex)
         }), 500
+@app.route('/createGroupRequest', methods=['POST'])
+@token_required
+def createGroupRequest():
+    try:
+       
+        data = request.get_json()
+        
+        ci_sender = request.ci
+        studyGroupId = data.get('studyGroupId')
+        receiver = data.get('receiver')
+        
+        if not all([studyGroupId, receiver]):
+            return jsonify({
+                'success': False,
+                'description': 'Faltan datos obligatorios'
+            }), 400
+        cursor = connection.cursor()
 
+        cursor.execute("SELECT leader FROM studyGroup WHERE studyGroupId = %s", (studyGroupId,))
+        
+        result = cursor.fetchone()
+        
+        leader = result['leader'] if result else None
+
+        if leader != ci_sender:
+            return jsonify({
+                'success': False,
+                'description': 'No eres el líder del equipo'
+            }), 400
+
+        cursor.execute("INSERT INTO groupRequest VALUES (%s, %s, DEFAULT, DEFAULT, DEFAULT)", (studyGroupId, receiver, ))
+        
+        connection.commit()
+        cursor.close()
+        
+        return jsonify({
+            'success': True,
+            'description': 'Solicitud realizada correctamente'
+        }), 201    
+        
+        
+        
+    except Exception as ex:
+        connection.rollback()
+        print("ERROR EN /createGroupRequest:", ex)
+        return jsonify({
+            'success': False,
+            'description': 'Error al realizar la solicitud',
+            'error': str(ex)
+        }), 500
 
 if __name__ == '__main__':
     app.register_error_handler(404, pageNotFound)
