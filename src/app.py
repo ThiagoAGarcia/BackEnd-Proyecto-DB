@@ -738,21 +738,36 @@ def getAllGroups(ci):
             'error': str(ex)
         }), 500
     
-@app.route('/deleteGroup/<groupId>', methods = ['DELETE'])
-def deleteGroupById(groupId):
+@app.route('/user/<ci>/deleteGroup/<groupId>', methods = ['DELETE'])
+def deleteGroupById(ci, groupId):
     try:
         cursor = connection.cursor()
+        ci = int(ci)
         groupId = int(groupId)
-        cursor.execute(''' 
-            DELETE FROM studyGroup
-            WHERE studyGroupId = %s;
-        ''', (groupId))
-        cursor.close()
 
-        return jsonify({
-            'success': True,
-            'description': 'El grupo se ha eliminado con éxito.'
-        })
+        cursor.execute(''' 
+            SELECT sG.leader
+            FROM studyGroup sG
+            WHERE sG.studyGroupId = %s
+        ''', (groupId))
+        leaderCi = cursor.fetchone()
+
+        if ci != leaderCi:
+            return jsonify({
+                'success': False,
+                'description': 'Solo se puede eliminar un grupo si eres el líder.'
+            })
+        else:
+            cursor.execute(''' 
+                DELETE FROM studyGroup
+                WHERE studyGroupId = %s AND status = 'Activo';
+            ''', (groupId))
+            cursor.close()
+
+            return jsonify({
+                'success': True,
+                'description': 'El grupo se ha eliminado con éxito.'
+            })
 
     except Exception as ex:
         return jsonify({
@@ -760,7 +775,7 @@ def deleteGroupById(groupId):
             'description': 'No se ha podido eliminar el grupo.'
         }), 500
 
-@app.route('/user/<ci>/group/<groupId/acceptRequest', methods = ['PATCH'])
+@app.route('/user/<ci>/group/<groupId>/acceptRequest', methods = ['PATCH'])
 def acceptUserRequest(ci, groupId):
     try:
         cursor = connection.cursor()
