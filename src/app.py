@@ -8,8 +8,6 @@ from db import connection
 from functools import wraps
 from pymysql.cursors import DictCursor
 
-
-
 def token_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
@@ -50,22 +48,17 @@ app = Flask(__name__)
 app.config['JSON_AS_ASCII'] = False
 app.config['JSONIFY_PRETTYPRINT_REGULAR'] = True
 
-
 @app.after_request
 def set_charset(response):
     response.headers["Content-Type"] = "application/json; charset=utf-8"
     return response
 
-
-
 app.config.from_object(config['development'])
 SECRET_KEY = 'JWT_SECRET_KEY=dIeocMZ1BzPxMcgmkLLPweME31lpx4XP3bsAXpqgt3SLrpKF2a0X6cdUOYr7joIJQwgcL1ht3GFpijm8qFcm4pHyAjie0rCpWEbqUEyYB4W5p36YjqYLhykwjIctJmcoQwF7R8uL9Z3eC34jlgki9dA57EuzT06E6gamcrHbJSmYykfkDwOE5uEeerYGQqzKBFOw9esDhiC1g0v0gWtTcDEPbbg6XMlxhe4MKgZsTfyb7rvUyLRYITcFykegU2tCZDKY'
 
 
-
 def pageNotFound(error):
     return "<h1>La página que buscas no existe.</h1>"
-
 
 @app.route('/user/<mail>/sanctions', methods=['GET'])
 @token_required
@@ -101,8 +94,7 @@ def getSanctionsUser(mail):
 
     except Exception as ex:
         return jsonify({'description': 'Error', 'error': str(ex)}), 500
-
-    
+ 
 @app.route('/careerInsert', methods=['POST'])
 @token_required
 def createCareer():
@@ -146,7 +138,6 @@ def createCareer():
             'error': str(ex)
         }), 500
 
-
 @app.route('/user/<careerID>', methods=['GET'])
 @token_required
 def getUserByCareer(careerID):
@@ -181,8 +172,6 @@ def getUserByCareer(careerID):
             'description': 'Error al obtener usuarios por carrera',
             'error': str(ex)
         }), 500
-
-
 
 @app.route('/user', methods=['GET'])
 @token_required
@@ -222,7 +211,6 @@ def getCareers():
 
     except Exception as ex:
         return jsonify({'success': False, 'description': 'Error', 'error': str(ex)}), 500
-
 
 @app.route('/register', methods=['POST'])
 def postRegister():
@@ -267,7 +255,7 @@ def postRegister():
 
         passwordHash = hash_pwd(password)
 
-        # Insertar primero en user
+        # Insertar en user
         cursor.execute(
             "INSERT INTO user (ci, name, lastName, mail) VALUES (%s, %s, %s, %s)",
             (ci, name, lastname, email)
@@ -295,13 +283,12 @@ def postRegister():
 
     except Exception as ex:
         connection.rollback()
-        print("❌ ERROR EN /register:", ex)
+        print("ERROR EN /register:", ex)
         return jsonify({
             'success': False,
             'description': 'Error al registrar el usuario',
             'error': str(ex)
         }), 500
-
 
 @app.route('/login', methods=['POST'])
 def postLogin():
@@ -354,7 +341,6 @@ def postLogin():
                 break
         if not role:
             role = 'unknown'
-
         
         now = datetime.now(timezone.utc)
         access_payload = {
@@ -383,7 +369,6 @@ def postLogin():
             'error': str(ex)
         }), 500
 
-
 @app.route('/newReservation', methods=['POST'])
 @token_required
 def newReservation():
@@ -402,7 +387,6 @@ def newReservation():
                 'description': 'Faltan datos obligatorios'
             }), 400
 
-        
         cursor = connection.cursor()
             
         if datetime.strptime(date, "%Y-%m-%d").date() < datetime.now().date():
@@ -411,8 +395,7 @@ def newReservation():
                 'success': False,
                 'description': 'No se puede reservar para una fecha que ya pasó'
             }), 400
-            
-        
+             
         cursor.execute("SELECT studyGroupId FROM studyGroup WHERE studyGroupId = %s", (studyGroupID,))
         result = cursor.fetchone()
         if not result:
@@ -422,7 +405,6 @@ def newReservation():
                 'description': f'No se encontró el grupo \"{studyGroupID}\"'
             }), 404 
         
-    
         cursor.execute("SELECT studyRoomId FROM studyRoom WHERE studyRoomId = %s", (studyRoomId,))
         result = cursor.fetchone()
         if not result:
@@ -432,7 +414,6 @@ def newReservation():
                 'description': f'No se encontró la sala \"{studyRoomId}\"'
             }), 404 
         
-    
         cursor.execute("SELECT shiftId FROM shift WHERE shiftId = %s", (shiftId,))
         result = cursor.fetchone()
         if not result:
@@ -441,7 +422,6 @@ def newReservation():
                 'success': False,
                 'description': f'No se encontró el turno \"{shiftId}\"'
             }), 404 
-        
         
         cursor.execute("""
             INSERT INTO reservation 
@@ -469,12 +449,9 @@ def newReservation():
 def getGroupUser(ci, groupId):
     try:
         cursor = connection.cursor(DictCursor)
-
-   
         ci = int(ci)
         groupId = int(groupId)
 
-        
         cursor.execute("""
             SELECT 1
             FROM studyGroup sg
@@ -518,7 +495,6 @@ def getGroupUser(ci, groupId):
                 'description': f'No se encontró el grupo con ID {groupId}'
             }), 404
 
-        
         group_info = {
             'studyGroupName': results[0]['studyGroupName'],
             'status': results[0]['status'],
@@ -549,11 +525,11 @@ def getGroupUser(ci, groupId):
             'description': 'Error al obtener la información del grupo',
             'error': str(ex)
         }), 500
+    
 @app.route('/createGroupRequest', methods=['POST'])
 @token_required
 def createGroupRequest():
     try:
-       
         data = request.get_json()
         
         ci_sender = request.ci
@@ -587,10 +563,7 @@ def createGroupRequest():
         return jsonify({
             'success': True,
             'description': 'Solicitud realizada correctamente'
-        }), 201    
-        
-        
-        
+        }), 201
     except Exception as ex:
         connection.rollback()
         print("ERROR EN /createGroupRequest:", ex)
@@ -599,6 +572,191 @@ def createGroupRequest():
             'description': 'Error al realizar la solicitud',
             'error': str(ex)
         }), 500
+    
+@app.route('/users/<name>&<lastName>&<mail>', methods = ['GET'])
+def getUserByNameLastMail(name, lastName, mail):
+    try:
+        cursor = connection.cursor(DictCursor)
+        name = str(name)
+        lastName = str(lastName)
+        mail = str(mail)
+
+        cursor.execute('''
+            SELECT 
+                u.ci AS ci, 
+                u.name AS name, 
+                u.lastName AS lastName, 
+                u.mail AS mail, 
+                u.profilePicture AS profilePicture
+            FROM (SELECT s.ci
+            FROM student s
+            UNION
+            SELECT p.ci
+            FROM professor p) ps
+            JOIN user u ON ps.ci = u.ci
+            WHERE u.name = %s AND u.lastName = %s AND u.mail = %s;
+        ''', (name, lastName, mail))
+        results = cursor.fetchone()
+        cursor.close()
+
+        if not results:
+            return jsonify({
+                'success': False,
+                'description': f'No se pudo encontrar un estudiante con las credenciales {name}, {lastName}, {mail}'
+            }), 404
+        else:
+            estudiante = {
+                'userCi': results['ci'],
+                'userName': results['name'],
+                'userLastName': results['lastName'],
+                'userMail': results['mail'],
+                'userProfilePicture': results['profilePicture']
+            }
+
+            return jsonify({
+                'success': True,
+                'description': 'Estudiante encontrado.',
+                'estudiante': estudiante
+            })
+
+    except Exception as ex:
+        return jsonify({
+            'success': False,
+            'description': 'Error al obtener usuario.',
+            'error': str(ex)
+        }), 500
+    
+@app.route('/user/<ci>/groupRequest', methods = ['GET'])
+def getAllUserGroupRequests(ci):
+    try:
+        cursor = connection.cursor(DictCursor)
+        ci = int(ci)
+
+        cursor.execute('''
+            SELECT 
+                gR.status AS requestStatus,
+                gR.isValid AS requestValidity, 
+                gR.requestDate AS requestDate, 
+                sG.leader AS groupLeader, 
+                sG.studyGroupName AS groupName, 
+                sG.status AS groupStatus
+            FROM groupRequest gR
+            JOIN studyGroup sG ON gR.studyGroupId = sG.studyGroupId
+            WHERE gR.receiver = %s;
+        ''', (ci))
+        results = cursor.fetchall()
+        groupRequests = []
+        
+        if not results:
+            return jsonify({
+                'success': False,
+                'description': f'No se pudieron encontrar las solicitudes para el usuario con cédula {ci}'
+            }), 404
+        for row in results:
+            groupRequests.append({
+                'requestStatus': row['requestStatus'],
+                'requestValidity': row['requestValidity'],
+                'requestDate': row['requestDate'],
+                'groupLeader': row['groupLeader'],
+                'groupName': row['groupName'],
+                'groupStatus': row['groupStatus']
+            })
+
+        return jsonify({
+            'success': True,
+            'description': 'Solicitudes encontradas.',
+            'notificaciones': groupRequests
+        })
+    
+    except Exception as ex:
+        return jsonify({
+            'success': False,
+            'description': 'No se pudieron encontrar las solicitudes.',
+            'error': str(ex)
+        }), 500
+    
+@app.route('/user/<ci>/myGroups', methods = ['GET'])
+def getAllGroups(ci):
+    try:
+        cursor = connection.cursor(DictCursor)
+        ci = int(ci)
+
+        cursor.execute(''' 
+            SELECT 
+                sG.studyGroupName AS groupName, 
+                sG.status AS groupStatus, 
+                u.name AS userName, 
+                u.lastName AS userLastName, 
+                u.mail AS userMail, 
+                u.profilePicture AS userPicture
+            FROM studyGroup sG
+            JOIN user u ON sG.leader = u.ci
+            WHERE u.ci = %s
+                UNION
+            SELECT 
+                sG.studyGroupName AS groupName, 
+                sG.status AS groupStatus, 
+                u.name AS userName, 
+                u.lastName AS userLastName, 
+                u.mail AS userMail, 
+                u.profilePicture AS userPicture
+                FROM studyGroupParticipant sGp
+            JOIN user u ON sGp.member = u.ci
+            JOIN studyGroup sG ON sGp.studyGroupId = sG.studyGroupId
+            WHERE sGp.member = %s;
+        ''', (ci))
+
+        results = cursor.fetchall()
+        if not results:
+            return jsonify({
+                'success': False,
+                'description': 'No se pudieron encontrar los grupos.'
+            })
+        
+        groups = []
+        for row in results:
+            groups.append({
+                'groupName': row['groupName'],
+                'groupState': row['groupState'],
+                'userName': row['userName'],
+                'userLastName': row['userLastName'],
+                'mail': row['userMail'],
+                'profilePicture': row['userPicture']
+            })
+
+        return jsonify({
+            'success': True,
+            'description': 'Grupos encontrados.',
+            'grupos': groups
+        })
+    except Exception as ex:
+        return jsonify({
+            'success': False,
+            'error': str(ex)
+        })
+    
+@app.route('/deleteGroup/<groupId>', methods = ['DELETE'])
+def deleteGroupById(groupId):
+    try:
+        cursor = connection.cursor()
+        groupId = int(groupId)
+        cursor.execute(''' 
+            DELETE FROM studyGroup
+            WHERE studyGroupId = 0;
+        ''')
+
+        # how do i check if the group got deleted or not actually?
+
+        return jsonify({
+            'success': True,
+            'description': 'El grupo se ha eliminado con éxito.'
+        })
+
+    except Exception as ex:
+        return jsonify({
+            'success': False,
+            'description': 'No se ha podido eliminar el grupo.'
+        })
 
 if __name__ == '__main__':
     app.register_error_handler(404, pageNotFound)
