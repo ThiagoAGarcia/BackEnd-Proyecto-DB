@@ -733,16 +733,7 @@ def get_user_ci_reservations(ci):
             group_ids = tuple(g["studyGroupId"] for g in groups)
 
             query_reservations = f"""
-                SELECT
-                    reservation.studyGroupId,
-                    studyGroup.studyGroupName,
-                    studyRoom.roomName,
-                    studyRoom.buildingName,
-                    reservation.date,
-                    shift.startTime,
-                    shift.endTime,
-                    reservation.state,
-                    reservation.assignedLibrarian
+                SELECT reservation.studyGroupId, studyGroup.studyGroupName, studyRoom.roomName, studyRoom.buildingName, reservation.date, shift.startTime, shift.endTime, reservation.state, reservation.assignedLibrarian
                 FROM reservation
                 INNER JOIN studyGroup ON reservation.studyGroupId = studyGroup.studyGroupId
                 INNER JOIN studyRoom ON reservation.studyRoomId = studyRoom.studyRoomId
