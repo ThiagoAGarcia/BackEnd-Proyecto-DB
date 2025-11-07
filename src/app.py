@@ -526,260 +526,110 @@ def getGroupUser(ci, groupId):
             'error': str(ex)
         }), 500
     
-@app.route('/newGroup', methods=['POST'])
+@app.route('/createGroupRequest', methods=['POST'])
 @token_required
-def newGroup():
+def createGroupRequest():
     try:
-        data = request.get_json() or {}
-        studyGroupName = data.get('studyGroupName')
-        leader = data.get('leader')
-
-        if not studyGroupName or not leader:
+        data = request.get_json()
+        
+        ci_sender = request.ci
+        studyGroupId = data.get('studyGroupId')
+        receiver = data.get('receiver')
+        
+        if not all([studyGroupId, receiver]):
             return jsonify({
                 'success': False,
-                'description': 'Faltan datos obligatorios (studyGroupName o leader)'
+                'description': 'Faltan datos obligatorios'
+            }), 400
+        cursor = connection.cursor()
+
+        cursor.execute("SELECT leader FROM studyGroup WHERE studyGroupId = %s", (studyGroupId,))
+        
+        result = cursor.fetchone()
+        
+        leader = result['leader'] if result else None
+
+        if leader != ci_sender:
+            return jsonify({
+                'success': False,
+                'description': 'No eres el líder del equipo'
             }), 400
 
-        cursor = connection.cursor(DictCursor)
-
-        cursor.execute("SELECT ci FROM user WHERE ci = %s", (leader,))
-        if not cursor.fetchone():
-            cursor.close()
-            return jsonify({
-                'success': False,
-                'description': f'No existe usuario con ci {leader}'
-            }), 404
-
-        cursor.execute("SELECT ci FROM student WHERE ci = %s", (leader,))
-        is_student = cursor.fetchone()
-        cursor.execute("SELECT ci FROM professor WHERE ci = %s", (leader,))
-        is_professor = cursor.fetchone()
-
-        if not (is_student or is_professor):
-            cursor.close()
-            return jsonify({
-                'success': False,
-                'description': 'Solo alumnos o docentes pueden crear grupos'
-            }), 403
-
-        cursor.execute("""
-            INSERT INTO studyGroup (studyGroupName, leader)
-            VALUES (%s, %s)
-        """, (studyGroupName, leader))
-        studyGroupId = cursor.lastrowid
+        cursor.execute("INSERT INTO groupRequest VALUES (%s, %s, DEFAULT, DEFAULT, DEFAULT)", (studyGroupId, receiver, ))
+        
         connection.commit()
-
         cursor.close()
-
+        
         return jsonify({
             'success': True,
-            'description': 'Grupo creado correctamente',
-            'studyGroupId': studyGroupId,
-            'leader': leader,
-            'studyGroupName': studyGroupName
+            'description': 'Solicitud realizada correctamente'
         }), 201
-
     except Exception as ex:
-        try:
-            connection.rollback()
-        except:
-            pass
+        connection.rollback()
+        print("ERROR EN /createGroupRequest:", ex)
         return jsonify({
             'success': False,
-            'description': 'Error inesperado al crear el grupo',
+            'description': 'Error al realizar la solicitud',
             'error': str(ex)
         }), 500
-
-@app.route('/user/<mail>/reservations', methods=['GET'])
-#@token_required
-def get_user_mail_reservations(mail):
+    
+@app.route('/users/<name>&<lastName>&<mail>', methods = ['GET'])
+def getUserByNameLastMail(name, lastName, mail):
     try:
         cursor = connection.cursor(DictCursor)
+        name = str(name)
+        lastName = str(lastName)
+        mail = str(mail)
 
-        cursor.execute("SELECT ci FROM user WHERE mail = %s", (mail,))
-        user = cursor.fetchone()
-        if not user:
-            cursor.close()
-            return jsonify({
-                "success": False,
-                "description": f"No existe un usuario con el mail {mail}"
-            }), 404
-
-        ci = user["ci"]
-
-        cursor.execute("""
-            SELECT DISTINCT studyGroup.studyGroupId
-            FROM studyGroup
-            LEFT JOIN studyGroupParticipant ON studyGroup.studyGroupId = studyGroupParticipant.studyGroupId
-            LEFT JOIN groupRequest ON studyGroup.studyGroupId = groupRequest.studyGroupId
-            WHERE studyGroup.leader = %s OR studyGroupParticipant.member = %s OR (groupRequest.receiver = %s AND groupRequest.status = 'Aceptada')
-        """, (ci, ci, ci))
-
-        groups = cursor.fetchall()
-        if not groups:
-            cursor.close()
-            return jsonify({
-                "success": True,
-                "reservations": []
-            }), 200
-
-        group_ids = tuple(group["studyGroupId"] for group in groups)
-
-        query = f"""
-            SELECT reservation.studyGroupId, studyGroup.studyGroupName, reservation.date, reservation.state, reservation.assignedLibrarian, studyRoom.roomName, building.buildingName, shift.startTime, shift.endTime
-            FROM reservation
-            JOIN studyGroup ON studyGroup.studyGroupId = reservation.studyGroupId
-            JOIN studyRoom ON studyRoom.studyRoomId = reservation.studyRoomId
-            JOIN building ON building.buildingName = studyRoom.buildingName
-            JOIN shift ON shift.shiftId = reservation.shiftId
-            WHERE reservation.studyGroupId IN %s
-            ORDER BY reservation.date DESC, shift.startTime ASC
-        """
-
-        cursor.execute(query, (group_ids,))
-        reservations = cursor.fetchall()
+        cursor.execute('''
+            SELECT 
+                u.ci AS ci, 
+                u.name AS name, 
+                u.lastName AS lastName, 
+                u.mail AS mail, 
+                u.profilePicture AS profilePicture
+            FROM (SELECT s.ci
+            FROM student s
+            UNION
+            SELECT p.ci
+            FROM professor p) ps
+            JOIN user u ON ps.ci = u.ci
+            WHERE u.name = %s AND u.lastName = %s AND u.mail = %s;
+        ''', (name, lastName, mail))
+        results = cursor.fetchone()
         cursor.close()
 
-        for res in reservations:
-            if isinstance(res.get("startTime"), timedelta):
-                total_seconds = res["startTime"].total_seconds()
-                hours = int(total_seconds // 3600)
-                minutes = int((total_seconds % 3600) // 60)
-                res["startTime"] = f"{hours:02d}:{minutes:02d}:00"
+        if not results:
+            return jsonify({
+                'success': False,
+                'description': f'No se pudo encontrar un estudiante con las credenciales {name}, {lastName}, {mail}'
+            }), 404
+        else:
+            estudiante = {
+                'userCi': results['ci'],
+                'userName': results['name'],
+                'userLastName': results['lastName'],
+                'userMail': results['mail'],
+                'userProfilePicture': results['profilePicture']
+            }
 
-            if isinstance(res.get("endTime"), timedelta):
-                total_seconds = res["endTime"].total_seconds()
-                hours = int(total_seconds // 3600)
-                minutes = int((total_seconds % 3600) // 60)
-                res["endTime"] = f"{hours:02d}:{minutes:02d}:00"
-
-        return jsonify({
-            "success": True,
-            "reservations": reservations
-        }), 200
+            return jsonify({
+                'success': True,
+                'description': 'Estudiante encontrado.',
+                'estudiante': estudiante
+            })
 
     except Exception as ex:
-        try:
-            connection.rollback()
-        except:
-            pass
         return jsonify({
-            "success": False,
-            "description": "Error al obtener las reservas del usuario",
-            "error": str(ex)
+            'success': False,
+            'description': 'Error al obtener usuario.',
+            'error': str(ex)
         }), 500
-
-@app.route('/freeRooms/<date>&<building>', methods=['GET'])
-def get_free_rooms(date, building):
-    try:
-        with connection.cursor() as cursor:
-            query = """
-                SELECT sR.roomName AS Sala, sR.buildingName AS Edificio, s.startTime AS Inicio, s.endTime AS Fin
-                FROM studyRoom sR
-                JOIN shift s
-                WHERE sR.buildingName = %s AND (sR.studyRoomId, s.shiftId) NOT IN (
-                    SELECT r.studyRoomId, r.shiftId
-                    FROM reservation r
-                    WHERE r.date = %s
-                )
-                ORDER BY Inicio, Fin DESC;
-            """
-
-            cursor.execute(query, (building, date))
-            free_rooms = cursor.fetchall()
-
-            for room in free_rooms:
-                if isinstance(room["Inicio"], (bytes, bytearray)) is False:
-                    room["Inicio"] = str(room["Inicio"])
-                if isinstance(room["Fin"], (bytes, bytearray)) is False:
-                    room["Fin"] = str(room["Fin"])
-
-            return jsonify({
-                "success": True,
-                "building": building,
-                "date": date,
-                "freeRooms": free_rooms
-            }), 200
-
-    except Exception as e:
-        print("Error al obtener salas libres:", e)
-        return jsonify({
-            "success": False,
-            "description": "Error al obtener las salas libres",
-            "error": str(e)
-        }), 500
-
-
-@app.route('/user/<int:ci>/reservations', methods=['GET'])
-def get_user_ci_reservations(ci):
-    try:
-        with connection.cursor() as cursor:
-            query_groups = """
-                SELECT DISTINCT studyGroup.studyGroupId, studyGroup.studyGroupName
-                FROM studyGroup
-                LEFT JOIN studyGroupParticipant ON studyGroup.studyGroupId = studyGroupParticipant.studyGroupId
-                WHERE studyGroup.leader = %s OR studyGroupParticipant.member = %s
-            """
-            cursor.execute(query_groups, (ci, ci))
-            groups = cursor.fetchall()
-
-            if not groups:
-                return jsonify({
-                    "success": True,
-                    "message": "El usuario no tiene grupos asociados.",
-                    "reservations": []
-                }), 200
-
-            group_ids = tuple(g["studyGroupId"] for g in groups)
-
-            query_reservations = f"""
-                SELECT
-                    reservation.studyGroupId,
-                    studyGroup.studyGroupName,
-                    studyRoom.roomName,
-                    studyRoom.buildingName,
-                    reservation.date,
-                    shift.startTime,
-                    shift.endTime,
-                    reservation.state,
-                    reservation.assignedLibrarian
-                FROM reservation
-                INNER JOIN studyGroup ON reservation.studyGroupId = studyGroup.studyGroupId
-                INNER JOIN studyRoom ON reservation.studyRoomId = studyRoom.studyRoomId
-                INNER JOIN shift ON reservation.shiftId = shift.shiftId
-                WHERE reservation.studyGroupId IN {group_ids}
-                ORDER BY reservation.date DESC
-            """
-
-            cursor.execute(query_reservations)
-            reservations = cursor.fetchall()
-
-            for r in reservations:
-                if isinstance(r["startTime"], timedelta):
-                    r["startTime"] = str(r["startTime"])
-                if isinstance(r["endTime"], timedelta):
-                    r["endTime"] = str(r["endTime"])
-
-            return jsonify({
-                "success": True,
-                "userCi": ci,
-                "reservations": reservations
-            }), 200
-
-    except Exception as e:
-        print("Error al obtener las reservas del usuario:", e)
-        return jsonify({
-            "success": False,
-            "description": "Error al obtener las reservas del usuario",
-            "error": str(e)
-        }), 500
-
-
+    
 @app.route('/user/<ci>/groupRequest', methods = ['GET'])
 def getAllUserGroupRequests(ci):
     try:
-        cursor = connection.cursor()
-
+        cursor = connection.cursor(DictCursor)
         ci = int(ci)
 
         cursor.execute('''
@@ -796,7 +646,7 @@ def getAllUserGroupRequests(ci):
         ''', (ci))
         results = cursor.fetchall()
         groupRequests = []
-
+        
         if not results:
             return jsonify({
                 'success': False,
@@ -817,14 +667,96 @@ def getAllUserGroupRequests(ci):
             'description': 'Solicitudes encontradas.',
             'notificaciones': groupRequests
         })
-
+    
     except Exception as ex:
         return jsonify({
             'success': False,
             'description': 'No se pudieron encontrar las solicitudes.',
             'error': str(ex)
         }), 500
+    
+@app.route('/user/<ci>/myGroups', methods = ['GET'])
+def getAllGroups(ci):
+    try:
+        cursor = connection.cursor(DictCursor)
+        ci = int(ci)
 
+        cursor.execute(''' 
+            SELECT 
+                sG.studyGroupName AS groupName, 
+                sG.status AS groupStatus, 
+                u.name AS userName, 
+                u.lastName AS userLastName, 
+                u.mail AS userMail, 
+                u.profilePicture AS userPicture
+            FROM studyGroup sG
+            JOIN user u ON sG.leader = u.ci
+            WHERE u.ci = %s
+                UNION
+            SELECT 
+                sG.studyGroupName AS groupName, 
+                sG.status AS groupStatus, 
+                u.name AS userName, 
+                u.lastName AS userLastName, 
+                u.mail AS userMail, 
+                u.profilePicture AS userPicture
+                FROM studyGroupParticipant sGp
+            JOIN user u ON sGp.member = u.ci
+            JOIN studyGroup sG ON sGp.studyGroupId = sG.studyGroupId
+            WHERE sGp.member = %s;
+        ''', (ci))
+
+        results = cursor.fetchall()
+        if not results:
+            return jsonify({
+                'success': False,
+                'description': 'No se pudieron encontrar los grupos.'
+            })
+        
+        groups = []
+        for row in results:
+            groups.append({
+                'groupName': row['groupName'],
+                'groupState': row['groupState'],
+                'userName': row['userName'],
+                'userLastName': row['userLastName'],
+                'mail': row['userMail'],
+                'profilePicture': row['userPicture']
+            })
+
+        return jsonify({
+            'success': True,
+            'description': 'Grupos encontrados.',
+            'grupos': groups
+        })
+    except Exception as ex:
+        return jsonify({
+            'success': False,
+            'error': str(ex)
+        })
+    
+@app.route('/deleteGroup/<groupId>', methods = ['DELETE'])
+def deleteGroupById(groupId):
+    try:
+        cursor = connection.cursor()
+        groupId = int(groupId)
+        cursor.execute(''' 
+            DELETE FROM studyGroup
+            WHERE studyGroupId = 0;
+        ''')
+
+        # how do i check if the group got deleted or not actually?
+
+        return jsonify({
+            'success': True,
+            'description': 'El grupo se ha eliminado con éxito.'
+        })
+
+    except Exception as ex:
+        return jsonify({
+            'success': False,
+            'description': 'No se ha podido eliminar el grupo.'
+        })
 
 if __name__ == '__main__':
     app.register_error_handler(404, pageNotFound)
