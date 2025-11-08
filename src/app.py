@@ -627,7 +627,7 @@ def getUserByNameLastMail(name, lastName, mail):
         }), 500
 
 @app.route('/freeRooms/<date>&<building>', methods=['GET'])
-def get_free_rooms(date, building):
+def getFreeRooms(date, building):
     try:
         with connection.cursor() as cursor:
             query = """
@@ -666,9 +666,78 @@ def get_free_rooms(date, building):
             "error": str(e)
         }), 500
 
+@app.route('/user/<mail>/reservations', methods=['GET'])
+#@token_required
+def getUserMailReservations(mail):
+    try:
+        with connection.cursor() as cursor:
+            query_user = "SELECT ci FROM user WHERE mail = %s"
+            cursor.execute(query_user, (mail,))
+            user = cursor.fetchone()
+
+            if not user:
+                return jsonify({
+                    "success": False,
+                    "description": "No se encontró un usuario con ese mail."
+                }), 404
+
+            ci = user["ci"]
+
+            query_groups = """
+                SELECT DISTINCT studyGroup.studyGroupId, studyGroup.studyGroupName
+                FROM studyGroup
+                LEFT JOIN studyGroupParticipant ON studyGroup.studyGroupId = studyGroupParticipant.studyGroupId
+                WHERE studyGroup.leader = %s OR studyGroupParticipant.member = %s
+            """
+            cursor.execute(query_groups, (ci, ci))
+            groups = cursor.fetchall()
+
+            if not groups:
+                return jsonify({
+                    "success": True,
+                    "message": "El usuario no tiene grupos asociados.",
+                    "reservations": []
+                }), 200
+
+            group_ids = tuple(g["studyGroupId"] for g in groups)
+
+            query_reservations = f"""
+                SELECT reservation.studyGroupId, studyGroup.studyGroupName, studyRoom.roomName, studyRoom.buildingName, reservation.date, shift.startTime, shift.endTime, reservation.state, reservation.assignedLibrarian
+                FROM reservation
+                INNER JOIN studyGroup ON reservation.studyGroupId = studyGroup.studyGroupId
+                INNER JOIN studyRoom ON reservation.studyRoomId = studyRoom.studyRoomId
+                INNER JOIN shift ON reservation.shiftId = shift.shiftId
+                WHERE reservation.studyGroupId IN {group_ids}
+                ORDER BY reservation.date DESC
+            """
+
+            cursor.execute(query_reservations)
+            reservations = cursor.fetchall()
+
+            for r in reservations:
+                if isinstance(r["startTime"], timedelta):
+                    r["startTime"] = str(r["startTime"])
+                if isinstance(r["endTime"], timedelta):
+                    r["endTime"] = str(r["endTime"])
+
+            return jsonify({
+                "success": True,
+                "userMail": mail,
+                "reservations": reservations
+            }), 200
+
+    except Exception as e:
+        print("Error al obtener las reservas del usuario:", e)
+        return jsonify({
+            "success": False,
+            "description": "Error al obtener las reservas del usuario",
+            "error": str(e)
+        }), 500
+
 
 @app.route('/user/<int:ci>/reservations', methods=['GET'])
-def get_user_ci_reservations(ci):
+#@token_required
+def getUserCiReservations(ci):
     try:
         with connection.cursor() as cursor:
             query_groups = """
@@ -830,29 +899,69 @@ def getAllGroups(ci):
             'success': False,
             'error': str(ex)
         })
-    
-@app.route('/deleteGroup/<groupId>', methods = ['DELETE'])
-def deleteGroupById(groupId):
+
+@app.route('/deleteUser/<studyGroupId>/<userId>', methods=['DELETE'])
+@token_required
+def deleteUserById(studyGroupId, userId):
     try:
         cursor = connection.cursor()
-        groupId = int(groupId)
-        cursor.execute(''' 
-            DELETE FROM studyGroup
-            WHERE studyGroupId = 0;
-        ''')
 
-        # how do i check if the group got deleted or not actually?
+        ci_sender = request.ci
+
+        cursor.execute("SELECT leader, status FROM studyGroup WHERE studyGroupId = %s", (studyGroupId,))
+        result = cursor.fetchone()
+
+        if not result:
+            return jsonify({
+                "success": False,
+                "description": "El grupo no existe"
+            }), 404
+
+        leader = result["leader"]
+        status = result["status"]
+
+        if status != 'Activo':
+            return jsonify({
+                "success": False,
+                "description": "No se pueden eliminar usuarios de un grupo inactivo"
+            }), 400
+
+        if leader != ci_sender:
+            return jsonify({
+                "success": False,
+                "description": "No sos el lider del grupo, no podes eliminar usuarios"
+            }), 403
+
+        cursor.execute("""
+            SELECT * FROM studyGroupParticipant
+            WHERE studyGroupId = %s AND member = %s
+        """, (studyGroupId, userId))
+        member = cursor.fetchone()
+
+        if not member:
+            return jsonify({
+                "success": False,
+                "description": "El usuario no pertenece a este grupo"
+            }), 404
+
+        cursor.execute("""
+            DELETE FROM studyGroupParticipant
+            WHERE studyGroupId = %s AND member = %s
+        """, (studyGroupId, userId))
+        connection.commit()
 
         return jsonify({
-            'success': True,
-            'description': 'El grupo se ha eliminado con éxito.'
-        })
+            "success": True,
+            "description": f"Usuario {userId} eliminado del grupo {studyGroupId} correctamente"
+        }), 200
 
-    except Exception as ex:
+    except Exception as e:
+        print("Error al eliminar usuario del grupo", e)
         return jsonify({
-            'success': False,
-            'description': 'No se ha podido eliminar el grupo.'
-        })
+            "success": False,
+            "description": "Error al eliminar usuario del grupo",
+            "error": str(e)
+        }), 500
 
 if __name__ == '__main__':
     app.register_error_handler(404, pageNotFound)
