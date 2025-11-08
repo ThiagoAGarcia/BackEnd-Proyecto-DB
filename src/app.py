@@ -103,7 +103,7 @@ def getSanctionsUser(mail):
         return jsonify({'description': 'Error', 'error': str(ex)}), 500
  
 
-@app.route('user/sanctions', methods=['GET'])
+@app.route('/user/sanctions', methods=['GET'])
 @token_required
 def getMySanctions():
     try:
