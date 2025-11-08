@@ -81,10 +81,11 @@ CREATE TABLE studyGroupParticipant (
 );
 
 CREATE TABLE student (
-	ci INT PRIMARY KEY,
+	ci INT NOT NULL,
 	careerId INT NOT NULL,
 	FOREIGN KEY (ci) REFERENCES user(ci),
-	FOREIGN KEY (careerId) REFERENCES career(careerId)
+	FOREIGN KEY (careerId) REFERENCES career(careerId),
+    PRIMARY KEY(ci, careerId)
 );
 
 CREATE TABLE professor (

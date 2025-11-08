@@ -337,6 +337,7 @@ def postRegister():
         email = data.get('email')
         password = data.get('password')
         career_name = data.get('career')
+        second_career = data.get('secondCareer')
 
         # Validar datos obligatorios
         if not all([ci, name, lastname, email, password, career_name]):
@@ -386,7 +387,11 @@ def postRegister():
             "INSERT INTO student (ci, careerId) VALUES (%s, %s)",
             (ci, careerId)
         )
-
+        if second_career:
+             cursor.execute(
+            "INSERT INTO student (ci, careerId) VALUES (%s, %s)",
+            (ci, second_career)
+        )
         connection.commit()
         cursor.close()
 
