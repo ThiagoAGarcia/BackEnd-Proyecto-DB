@@ -526,9 +526,9 @@ def getGroupUser(ci, groupId):
             'error': str(ex)
         }), 500
     
-@app.route('/createGroupRequest', methods=['POST'])
+@app.route('/sendGroupRequest', methods=['POST'])
 @token_required
-def createGroupRequest():
+def sendGroupRequest():
     try:
         data = request.get_json()
         
@@ -757,7 +757,79 @@ def deleteGroupById(groupId):
     except Exception as ex:
         return jsonify({
             'success': False,
-            'description': 'No se ha podido eliminar el grupo.'
+            'description': 'No se ha podido eliminar el grupo.',
+            'error': str(ex)
+        })
+@app.route('/getGroupInformation/<groupId>', methods=['GET'])
+@token_required
+def getGroupInformation(groupId):
+    try:
+        cursor = connection.cursor(DictCursor)
+        ci = request.ci
+        groupId = int(groupId)
+
+        cursor.execute("""
+            SELECT 1
+            FROM studyGroup sg
+            LEFT JOIN studyGroupParticipant sgp 
+                ON sg.studyGroupId = sgp.studyGroupId
+            WHERE sg.studyGroupId = %s
+              AND (sg.leader = %s OR sgp.member = %s)
+        """, (groupId, ci, ci))
+        result = cursor.fetchone()
+
+        if not result:
+            cursor.close()
+            return jsonify({
+                'success': False,
+                'description': 'No eres miembro del grupo'
+            }), 403
+
+        cursor.execute("""
+            SELECT 
+                sg.studyGroupId,
+                sg.studyGroupName,
+                sg.status,
+                u_leader.ci AS leaderCi,
+                CONCAT(u_leader.name, ' ', u_leader.lastname) AS leaderName
+            FROM studyGroup sg
+            JOIN user u_leader ON sg.leader = u_leader.ci
+            WHERE sg.studyGroupId = %s
+        """, (groupId,))
+        group_info = cursor.fetchone()
+
+        cursor.execute("""
+            SELECT 
+                u.ci,
+                CONCAT(u.name, ' ', u.lastname) AS fullName
+            FROM studyGroupParticipant sgp
+            JOIN user u ON sgp.member = u.ci
+            WHERE sgp.studyGroupId = %s
+        """, (groupId,))
+        members = cursor.fetchall()
+
+        cursor.close()
+
+        return jsonify({
+            'success': True,
+            'description': 'Información del grupo obtenida con éxito',
+            'data': {
+                'studyGroupId': group_info['studyGroupId'],
+                'studyGroupName': group_info['studyGroupName'],
+                'status': group_info['status'],
+                'leader': {
+                    'ci': group_info['leaderCi'],
+                    'name': group_info['leaderName']
+                },
+                'members': members
+            }
+        }), 200
+
+    except Exception as ex:
+        return jsonify({
+            'success': False,
+            'description': 'No se pudo obtener la información del grupo.',
+            'error': str(ex)
         }), 500
 
 @app.route('/user/<ci>/group/<groupId/acceptRequest', methods = ['PATCH'])
