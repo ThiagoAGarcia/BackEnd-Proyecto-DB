@@ -279,7 +279,6 @@ def getUserByCareer(careerID):
 
 # Conseguir todos los usuarios
 @app.route('/users', methods=['GET'])
-@token_required
 def getUsers():
     try:
         cursor = connection.cursor()
@@ -289,7 +288,9 @@ def getUsers():
         for row in queryResults:
             user = {'name': row['name'], 'lastName': row['lastName']}
             users.append(user)
-        return jsonify({'users': users, 'desc': 'listo.'})
+        output = jsonify({'users': users, 'success': True})
+        output.headers.add("Access-Control-Allow-Origin", "*")
+        return output
     except Exception as ex:
         return jsonify({'description': 'Error', 'error': str(ex)})
 
