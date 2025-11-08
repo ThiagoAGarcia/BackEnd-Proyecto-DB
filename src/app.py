@@ -612,6 +612,7 @@ def getUserByNameLastMail(name, lastName, mail):
                 'userMail': results['mail'],
                 'userProfilePicture': results['profilePicture']
             }
+            cursor.close()
 
             return jsonify({
                 'success': True,
@@ -661,6 +662,7 @@ def getAllUserGroupRequests(ci):
                 'groupName': row['groupName'],
                 'groupStatus': row['groupStatus']
             })
+        cursor.close()
 
         return jsonify({
             'success': True,
@@ -723,6 +725,7 @@ def getAllGroups(ci):
                 'mail': row['userMail'],
                 'profilePicture': row['userPicture']
             })
+        cursor.close()
 
         return jsonify({
             'success': True,
@@ -733,7 +736,7 @@ def getAllGroups(ci):
         return jsonify({
             'success': False,
             'error': str(ex)
-        })
+        }), 500
     
 @app.route('/deleteGroup/<groupId>', methods = ['DELETE'])
 def deleteGroupById(groupId):
@@ -742,10 +745,9 @@ def deleteGroupById(groupId):
         groupId = int(groupId)
         cursor.execute(''' 
             DELETE FROM studyGroup
-            WHERE studyGroupId = 0;
-        ''')
-
-        # how do i check if the group got deleted or not actually?
+            WHERE studyGroupId = %s;
+        ''', (groupId))
+        cursor.close()
 
         return jsonify({
             'success': True,
@@ -828,6 +830,60 @@ def getGroupInformation(groupId):
             'success': False,
             'description': 'No se pudo obtener la información del grupo.',
             'error': str(ex)
+        }), 500
+
+@app.route('/user/<ci>/group/<groupId/acceptRequest', methods = ['PATCH'])
+def acceptUserRequest(ci, groupId):
+    try:
+        cursor = connection.cursor()
+        ci = int(ci)
+        groupId = int(groupId)
+        
+        cursor.execute(''' 
+            UPDATE groupRequest
+            SET status = 'Aceptada'
+            WHERE receiver = %s AND studyGroupId = %s;
+        ''', (ci, groupId))
+
+        cursor.execute(''' 
+            INSERT INTO studyGroupParticipant VALUES
+            (%s, %s)
+        ''', (groupId, ci))
+        cursor.close()
+
+        return jsonify({
+            'success': True, 
+            'description': 'Se ha aceptado la solicitud.'
+        })
+    except Exception as ex:
+        return jsonify({
+            'success': False,
+            'description': 'No se pudo procesar la solicitud.',
+            'error': str(ex)
+        }), 500
+    
+@app.route('/user/<ci>/group/<groupId>/denyRequest', methods = ['PATCH'])
+def denyGroupRequest(ci, groupId):
+    try:
+        cursor = connection.cursor()
+        ci = int(ci)
+        groupId = int(groupId)
+
+        cursor.execute(''' 
+            UPDATE groupRequest
+            SET status = 'Rechazada'
+            WHERE receiver = %s AND studyGroupId = %s;
+        ''', (ci, groupId))
+        cursor.close()
+
+        return jsonify({
+            'success': True, 
+            'description': 'Se ha rechazado la solicitud.'
+        })
+    except Exception as ex:
+        return jsonify({
+            'success': False,
+            'description': 'No se pudo procesar la solicitud.'
         }), 500
 
 if __name__ == '__main__':
