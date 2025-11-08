@@ -184,23 +184,23 @@ INSERT INTO career VALUES
 (NULL, 'Doctorado en Ingeniería', 2024, 5, 'Posgrado');
 
 INSERT INTO login VALUES
-('agostina.etchebarren@correo.ucu.edu.uy', 'agostina2006'),
-('santiago.aguerre@correo.ucu.edu.uy', 'plantasvszombies2011'),
-('thiago.garcia@correo.ucu.edu.uy', 'levimicasita02'),
-('martina.caetano@correo.ucu.edu.uy', 'toyotaCorolla1998'),
-('pilar.antelo@correo.ucu.edu.uy', '90resultadosRedondos'),
-('facundo.piriz@correo.ucu.edu.uy', 'minasElMejorDepartamento'),
-('diego.deoliveira@correo.ucu.edu.uy', 'pan&ciruela'),
-('santiago.blanco@correo.ucu.edu.uy', '10111010011'),
-('lucia.mallada@correo.ucu.edu.uy', 'jshs8294mjdns999'),
-('luana.biurarrena@correo.ucu.edu.uy', 'ajdcn765cks1123'),
-('ramiro.casco@correo.ucu.edu.uy', 'lush8888'),
-('lourdes.machado@ucu.edu.uy', 'jupiter1974'),
-('david.liesegang@ucu.edu.uy', 'chocolate1972'),
-('rodrigo.diaz@ucu.edu.uy', 'soyUnNPC2333'),
-('martha.lauria@ucu.edu.uy', 'iAmGoingToKillBill'),
-('veronica.posadas@ucu.edu.uy', 'basesLaMejorMateria11111'),
-('saul.esquivel@ucu.edu.uy', 'elInfiernoSonLosOtros2004');
+('agostina.etchebarren@correo.ucu.edu.uy', '$2b$16$XwajVoE75BbZUDEf0aFsKuWIkDMudlreTmQ2uH1yeq.z5vCbbNbSG'), -- agostina2006
+('santiago.aguerre@correo.ucu.edu.uy', '$2b$16$g1LkX1b/Q8QV0h4m9LvSOuqN77ak.dwMt9fklaE0oS6Rtt0oIjqs6'), -- plantasvszombies2011
+('thiago.garcia@correo.ucu.edu.uy', '$2b$16$nXiuO/Rk15D99cm.9hGND.dEaUyN1amFq45eAzsMSoTlO/GnaFICa'), -- levimicasita02
+('martina.caetano@correo.ucu.edu.uy', '$2b$16$j7yjwqN5JbIXOlpcgAsr4.cCTCPDc8HVqg8DT1YmAlrS7g6.sAHNy'), -- toyotaCorolla1998
+('pilar.antelo@correo.ucu.edu.uy', '$2b$16$NBH8ENQgGtzpuybu.vSQmeHf8UNcDE2ozxXL8xr81Bnx02AVQ0vuK'), -- 90resultadosRedondos
+('facundo.piriz@correo.ucu.edu.uy', '$2b$16$jdYuxJsD1k7UJjXze16UI.R1Wvy5Qsd6x.TilvKcxU0cbvPj29x.y'), -- minasElMejorDepartamento
+('diego.deoliveira@correo.ucu.edu.uy', '$2b$16$mNpGG3LnBI8sJKOOxSQ9jurTyhU8DP/hP.D.fpFc/jOXlBzPw0crC'), -- pan&ciruela
+('santiago.blanco@correo.ucu.edu.uy', '$2b$16$VPfzjORnNTkE5t47w8bLgOCzIuo4q/psU6nR6id5PWKRqu7C4ORzu'), -- 10111010011
+('lucia.mallada@correo.ucu.edu.uy', '$2b$16$f4fiDRwV4pzVg32oRXwYDeX/10BKpi1Qu5F4RsGoeCe65d4WI0w6a'), -- jshs8294mjdns999
+('luana.biurarrena@correo.ucu.edu.uy', '$2b$16$QGBIR05MMT5.CFZ1O/54FeVd4QFRne7Ryu6KARSSnhRa24M5GpGCO'), -- ajdcn765cks1123
+('ramiro.casco@correo.ucu.edu.uy', '$2b$16$ZZ.XYYaIqRvEm2fg4uvII.7qoFrhYWcS5XqidOWETnikSfQlGMAPW'), -- lush8888
+('lourdes.machado@ucu.edu.uy', '$2b$16$tPSpm1OpTfL66GHY3tvKFunXgHlzlqRMTop3U3bZ9iTMmilxarmXS'), -- jupiter1974
+('david.liesegang@ucu.edu.uy', '$2b$16$w9m5XPNPUVKRR1VhJ/WXs.yEUkv3seWC2e0vXCqhz9O2HM/iqB.dm'), -- chocolate1972
+('rodrigo.diaz@ucu.edu.uy', '$2b$16$nKUf5sdg1McD0/EKWb2PtebGsSKg8O9jK6.vt7VgD04tC6WQg0IcW'), -- soyUnNPC2333
+('martha.lauria@ucu.edu.uy', '$2b$16$YiUwdugvAyxbHtmq4qRE4ewN/xHJTPnj7WDv9eHnIR57GJzwzaEjO'), -- iAmGoingToKillBill
+('veronica.posadas@ucu.edu.uy', '$2b$16$.zBFmuYIC5g12.dwzTOk.OcqoLPSRtA.L/WGkDSWFSczYa2CxUNva'), -- basesLaMejorMateria11111
+('saul.esquivel@ucu.edu.uy', '$2b$16$ZImd7DslxlQ6iZtjSO5VBOiNOghs5KhpR/mwYtMGvC/Rn8aBB8bNK'); -- elInfiernoSonLosOtros2004
 
 INSERT INTO building VALUES
 ('Central', 'Av. 8 de Octubre 2738', 'Montevideo'),
