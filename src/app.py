@@ -997,7 +997,7 @@ def getGroupInformation(groupId):
             'error': str(ex)
         }), 500
 
-@app.route('/user/<ci>/group/<groupId/acceptRequest', methods = ['PATCH'])
+@app.route('/user/<ci>/group/<groupId>/acceptRequest', methods = ['PATCH'])
 def acceptUserRequest(ci, groupId):
     try:
         cursor = connection.cursor()
