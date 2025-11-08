@@ -64,6 +64,13 @@ def pageNotFound(error):
 @token_required
 def getSanctionsUser(mail):
     try:
+        rol = request.role
+        if rol != "librarian" or rol != "administrator" :
+            return jsonify({
+                "success": False,
+                "description": "Usuario no autorizado",
+                
+            }), 401
         cursor = connection.cursor(DictCursor)
         cursor.execute("""
             SELECT 
@@ -95,10 +102,61 @@ def getSanctionsUser(mail):
     except Exception as ex:
         return jsonify({'description': 'Error', 'error': str(ex)}), 500
  
+
+@app.route('user/sanctions', methods=['GET'])
+@token_required
+def getMySanctions():
+    try:
+        rol = request.role
+        if rol != "student" or rol != "professor" :
+            return jsonify({
+                "success": False,
+                "description": "Usuario no autorizado",
+            }), 401
+        
+        cursor = connection.cursor()
+        ci = request.ci
+
+        cursor.execute("""
+            SELECT s.description, GREATEST(DATEDIFF(s.endDate, CURRENT_DATE), 0) AS dias_restantes, s.startDate, s.endDate
+            FROM sanction s
+            WHERE s.ci = %s
+        """, (ci,))
+
+        results = cursor.fetchall()
+        cursor.close()
+
+        sanctions = []
+        for row in results:
+            sanctions.append({
+                'description': row['description'],
+                'dias_restantes': row['dias_restantes'],
+                'startDate': row['startDate'],
+                'endDate': row['endDate']
+            })
+
+        return jsonify({'sanctions': sanctions, 'success': True}), 200
+
+    except Exception as ex:
+        connection.rollback()
+        return jsonify({
+            'success': False,
+            'description': 'No se pudieron ver tus sanciones',
+            'error': str(ex)
+        }), 500
+
+
 @app.route('/careerInsert', methods=['POST'])
 @token_required
 def createCareer():
     try:
+        rol = request.role
+        if rol != "administrator" :
+            return jsonify({
+                "success": False,
+                "description": "Usuario no autorizado",
+                
+            }), 401
         data = request.get_json()
         careerName = data.get('careerName')
         planYear = data.get('planYear')
@@ -189,7 +247,6 @@ def getUsers():
         return jsonify({'description': 'Error', 'error': str(ex)})
 
 @app.route('/career', methods=['GET'])
-@token_required
 def getCareers():
     try:
         cursor = connection.cursor()
@@ -668,7 +725,7 @@ def getFreeRooms(date, building):
         }), 500
 
 @app.route('/user/<mail>/reservations', methods=['GET'])
-#@token_required
+@token_required
 def getUserMailReservations(mail):
     try:
         with connection.cursor() as cursor:
@@ -737,7 +794,7 @@ def getUserMailReservations(mail):
 
 
 @app.route('/user/<int:ci>/reservations', methods=['GET'])
-#@token_required
+@token_required
 def getUserCiReservations(ci):
     try:
         with connection.cursor() as cursor:
@@ -1070,6 +1127,13 @@ def denyGroupRequest(ci, groupId):
 @token_required
 def deleteUserById(studyGroupId, userId):
     try:
+        rol = request.role
+        if rol != "student" or rol != "professor" :
+            return jsonify({
+                "success": False,
+                "description": "Usuario no autorizado",
+                
+            }), 401
         cursor = connection.cursor()
 
         ci_sender = request.ci
