@@ -2,12 +2,18 @@ DROP DATABASE IF EXISTS ObligatorioBDD;
 CREATE DATABASE ObligatorioBDD CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE ObligatorioBDD;
 
+CREATE TABLE campus (
+    campusName VARCHAR(32) PRIMARY KEY CHECK ( CHAR_LENGTH(campusName) >= 5 )
+);
+
 CREATE TABLE user (
 	ci INT PRIMARY KEY,
 	name VARCHAR(32) NOT NULL CHECK ( CHAR_LENGTH(name) >= 3 ),
     lastName VARCHAR(32) NOT NULL CHECK ( CHAR_LENGTH(lastName) >= 3 ),
     mail VARCHAR(50) UNIQUE CHECK ( LOWER(mail) LIKE '%@correo.ucu.edu.uy' OR LOWER(mail) LIKE '%@ucu.edu.uy'),
-	profilePicture VARCHAR(100)
+	profilePicture VARCHAR(100),
+    campus VARCHAR(32),
+    FOREIGN KEY (campus) REFERENCES campus(campusName)
 );
 
 CREATE TABLE faculty (
@@ -45,7 +51,8 @@ CREATE TABLE login (
 CREATE TABLE building (
 	buildingName VARCHAR(32) PRIMARY KEY,
 	address VARCHAR(32) NOT NULL,
-	campus VARCHAR(32) NOT NULL CHECK ( CHAR_LENGTH(campus) >= 5 )
+	campus VARCHAR(32) NOT NULL,
+    FOREIGN KEY (campus) REFERENCES campus(campusName)
 );
 
 CREATE TABLE shift (
@@ -141,25 +148,30 @@ CREATE TABLE sanction (
 
 /**** INSERTIONS ****/
 
+INSERT INTO campus VALUES
+('Montevideo'),
+('Punta del Este'),
+('Salto');
+
 INSERT INTO user VALUES
-(55897692, 'Agostina', 'Etchebarren', 'agostina.etchebarren@correo.ucu.edu.uy', NULL),
-(55531973, 'Santiago', 'Aguerre', 'santiago.aguerre@correo.ucu.edu.uy', NULL),
-(57004718, 'Thiago', 'Garcia', 'thiago.garcia@correo.ucu.edu.uy', NULL),
-(55299080, 'Martina', 'Caetano', 'martina.caetano@correo.ucu.edu.uy', NULL),
-(56309531, 'Pilar', 'Antelo', 'pilar.antelo@correo.ucu.edu.uy', NULL),
-(56902752, 'Facundo', 'Píriz', 'facundo.piriz@correo.ucu.edu.uy', NULL),
-(59283629, 'Diego', 'de Oliveira', 'diego.deoliveira@correo.ucu.edu.uy', NULL),
-(52435831, 'Santiago', 'Blanco', 'santiago.blanco@correo.ucu.edu.uy', NULL),
-(54729274, 'Lucia', 'Mallada', 'lucia.mallada@correo.ucu.edu.uy', NULL),
-(52737428, 'Luana', 'Biurarrena', 'luana.biurarrena@correo.ucu.edu.uy', NULL),
-(57389261, 'Ramiro', 'Casco', 'ramiro.casco@correo.ucu.edu.uy', NULL),
-(32124436, 'Lourdes', 'Machado', 'lourdes.machado@ucu.edu.uy', NULL),
-(36907777, 'David', 'Liesegang', 'david.liesegang@ucu.edu.uy', NULL),
-(34567836, 'Rodrigo', 'Díaz', 'rodrigo.diaz@ucu.edu.uy', NULL),
-(45615815, 'Martha', 'Lauria', 'martha.lauria@ucu.edu.uy', NULL),
-(12345678, 'Verónica', 'Posadas', 'veronica.posadas@ucu.edu.uy', NULL),
-(45673829, 'Franco', 'Portela', 'franco.portela@ucu.edu.uy', NULL),
-(32749352, 'Saúl', 'Esquivel', 'saul.esquivel@ucu.edu.uy', NULL);
+(55897692, 'Agostina', 'Etchebarren', 'agostina.etchebarren@correo.ucu.edu.uy', NULL, 'Montevideo'),
+(55531973, 'Santiago', 'Aguerre', 'santiago.aguerre@correo.ucu.edu.uy', NULL, 'Montevideo'),
+(57004718, 'Thiago', 'Garcia', 'thiago.garcia@correo.ucu.edu.uy', NULL, 'Montevideo'),
+(55299080, 'Martina', 'Caetano', 'martina.caetano@correo.ucu.edu.uy', NULL, 'Montevideo'),
+(56309531, 'Pilar', 'Antelo', 'pilar.antelo@correo.ucu.edu.uy', NULL, 'Montevideo'),
+(56902752, 'Facundo', 'Píriz', 'facundo.piriz@correo.ucu.edu.uy', NULL, 'Montevideo'),
+(59283629, 'Diego', 'de Oliveira', 'diego.deoliveira@correo.ucu.edu.uy', NULL, 'Montevideo'),
+(52435831, 'Santiago', 'Blanco', 'santiago.blanco@correo.ucu.edu.uy', NULL, 'Montevideo'),
+(54729274, 'Lucia', 'Mallada', 'lucia.mallada@correo.ucu.edu.uy', NULL, 'Montevideo'),
+(52737428, 'Luana', 'Biurarrena', 'luana.biurarrena@correo.ucu.edu.uy', NULL, 'Montevideo'),
+(57389261, 'Ramiro', 'Casco', 'ramiro.casco@correo.ucu.edu.uy', NULL, 'Montevideo'),
+(32124436, 'Lourdes', 'Machado', 'lourdes.machado@ucu.edu.uy', NULL, 'Montevideo'),
+(36907777, 'David', 'Liesegang', 'david.liesegang@ucu.edu.uy', NULL, 'Montevideo'),
+(34567836, 'Rodrigo', 'Díaz', 'rodrigo.diaz@ucu.edu.uy', NULL, 'Montevideo'),
+(45615815, 'Martha', 'Lauria', 'martha.lauria@ucu.edu.uy', NULL, 'Montevideo'),
+(12345678, 'Verónica', 'Posadas', 'veronica.posadas@ucu.edu.uy', NULL, 'Montevideo'),
+(45673829, 'Franco', 'Portela', 'franco.portela@ucu.edu.uy', NULL, 'Montevideo'),
+(32749352, 'Saúl', 'Esquivel', 'saul.esquivel@ucu.edu.uy', NULL, 'Montevideo');
 
 INSERT INTO faculty VALUES
 (NULL, 'Facultad de Psicología y Bienestar Humano'),
