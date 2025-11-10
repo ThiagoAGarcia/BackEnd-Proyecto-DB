@@ -60,9 +60,10 @@ SECRET_KEY = 'JWT_SECRET_KEY=dIeocMZ1BzPxMcgmkLLPweME31lpx4XP3bsAXpqgt3SLrpKF2a0
 def pageNotFound(error):
     return "<h1>La página que buscas no existe.</h1>"
 
+# Conseguir todas las sanciones de un usuario por mail OBSOLETO
 @app.route('/user/<mail>/sanctions', methods=['GET'])
 @token_required
-def getSanctionsUser(mail):
+def getUserMailSanctions(mail):
     try:
         rol = request.role
         if rol != "librarian" or rol != "administrator" :
@@ -71,6 +72,7 @@ def getSanctionsUser(mail):
                 "description": "Usuario no autorizado",
                 
             }), 401
+        
         cursor = connection.cursor(DictCursor)
         cursor.execute("""
             SELECT 
@@ -101,8 +103,51 @@ def getSanctionsUser(mail):
 
     except Exception as ex:
         return jsonify({'description': 'Error', 'error': str(ex)}), 500
- 
+    
+# Conseguir todas las sanciones de un usuario por mail OBSOLETO
+@app.route('/user/<ci>/sanctions', methods=['GET'])
+@token_required
+def getUserCiSanctions(ci):
+    try:
+        rol = request.role
+        if rol != "librarian" or rol != "administrator" :
+            return jsonify({
+                "success": False,
+                "description": "Usuario no autorizado",
+            }), 401
+        
+        cursor = connection.cursor()
+        ci = int(ci)
 
+        cursor.execute("""
+            SELECT s.description, GREATEST(DATEDIFF(s.endDate, CURRENT_DATE), 0) AS dias_restantes, s.startDate, s.endDate
+            FROM sanction s
+            WHERE s.ci = %s
+        """, (ci,))
+
+        results = cursor.fetchall()
+        cursor.close()
+
+        sanctions = []
+        for row in results:
+            sanctions.append({
+                'description': row['description'],
+                'dias_restantes': row['dias_restantes'],
+                'startDate': row['startDate'],
+                'endDate': row['endDate']
+            })
+
+        return jsonify({'sanctions': sanctions, 'success': True}), 200
+
+    except Exception as ex:
+        connection.rollback()
+        return jsonify({
+            'success': False,
+            'description': 'No se pudieron ver tus sanciones',
+            'error': str(ex)
+        }), 500
+ 
+# Conseguir todas las sanciones de un usuario por token
 @app.route('/user/sanctions', methods=['GET'])
 @token_required
 def getMySanctions():
@@ -145,7 +190,7 @@ def getMySanctions():
             'error': str(ex)
         }), 500
 
-
+# Insertar nuevas carreras OBSOLETO
 @app.route('/careerInsert', methods=['POST'])
 @token_required
 def createCareer():
@@ -196,6 +241,7 @@ def createCareer():
             'error': str(ex)
         }), 500
 
+# Conseguir todos los usuarios que estudien cierta carrera OBSOLETO
 @app.route('/user/<careerID>', methods=['GET'])
 @token_required
 def getUserByCareer(careerID):
@@ -231,8 +277,8 @@ def getUserByCareer(careerID):
             'error': str(ex)
         }), 500
 
-@app.route('/user', methods=['GET'])
-@token_required
+# Conseguir todos los usuarios
+@app.route('/users', methods=['GET'])
 def getUsers():
     try:
         cursor = connection.cursor()
@@ -242,10 +288,13 @@ def getUsers():
         for row in queryResults:
             user = {'name': row['name'], 'lastName': row['lastName']}
             users.append(user)
-        return jsonify({'users': users, 'desc': 'listo.'})
+        output = jsonify({'users': users, 'success': True})
+        output.headers.add("Access-Control-Allow-Origin", "*")
+        return output
     except Exception as ex:
         return jsonify({'description': 'Error', 'error': str(ex)})
 
+# Conseguir todas las carreras OBSOLETO
 @app.route('/career', methods=['GET'])
 def getCareers():
     try:
@@ -269,9 +318,18 @@ def getCareers():
     except Exception as ex:
         return jsonify({'success': False, 'description': 'Error', 'error': str(ex)}), 500
 
+# Registro de usuarios
 @app.route('/register', methods=['POST'])
 def postRegister():
     try:
+        rol = request.role
+        if rol != "administrator" :
+            return jsonify({
+                "success": False,
+                "description": "Usuario no autorizado",
+                
+            }), 401
+        
         data = request.get_json()
 
         ci = data.get('ci')
@@ -280,6 +338,7 @@ def postRegister():
         email = data.get('email')
         password = data.get('password')
         career_name = data.get('career')
+        second_career = data.get('secondCareer')
 
         # Validar datos obligatorios
         if not all([ci, name, lastname, email, password, career_name]):
@@ -329,7 +388,11 @@ def postRegister():
             "INSERT INTO student (ci, careerId) VALUES (%s, %s)",
             (ci, careerId)
         )
-
+        if second_career:
+             cursor.execute(
+            "INSERT INTO student (ci, careerId) VALUES (%s, %s)",
+            (ci, second_career)
+        )
         connection.commit()
         cursor.close()
 
@@ -347,6 +410,7 @@ def postRegister():
             'error': str(ex)
         }), 500
 
+# Inicio de sesión
 @app.route('/login', methods=['POST'])
 def postLogin():
     try:
@@ -426,6 +490,7 @@ def postLogin():
             'error': str(ex)
         }), 500
 
+# Hacer una nueva reserva
 @app.route('/newReservation', methods=['POST'])
 @token_required
 def newReservation():
@@ -501,12 +566,21 @@ def newReservation():
             'error': str(ex)
         }), 500
          
-@app.route('/user/<ci>&<groupId>', methods=['GET'])
+# Conseguir información de un grupo cuando se es parte
+@app.route('/myGroup/<groupId>', methods=['GET'])
 @token_required
-def getGroupUser(ci, groupId):
+def getGroupUser(groupId):
     try:
+        rol = request.role
+        if rol != "student" or rol != "professor" :
+            return jsonify({
+                "success": False,
+                "description": "Usuario no autorizado",
+                
+            }), 401
+        
         cursor = connection.cursor(DictCursor)
-        ci = int(ci)
+        ci = request.ci
         groupId = int(groupId)
 
         cursor.execute("""
@@ -523,10 +597,9 @@ def getGroupUser(ci, groupId):
             cursor.close()
             return jsonify({
                 'success': False,
-                'description': 'No eres miembro del grupo'
+                'description': 'No eres miembro del grupo.'
             }), 404
 
-       
         cursor.execute("""
             SELECT 
                 sg.studyGroupName,
@@ -583,10 +656,19 @@ def getGroupUser(ci, groupId):
             'error': str(ex)
         }), 500
     
+# Enviar una solicitud
 @app.route('/sendGroupRequest', methods=['POST'])
 @token_required
 def sendGroupRequest():
     try:
+        rol = request.role
+        if rol != "student" or rol != "professor" :
+            return jsonify({
+                "success": False,
+                "description": "Usuario no autorizado",
+                
+            }), 401
+        
         data = request.get_json()
         
         ci_sender = request.ci
@@ -630,6 +712,7 @@ def sendGroupRequest():
             'error': str(ex)
         }), 500
     
+# Conseguir usuarios por nombre, apellido o mail
 @app.route('/users/<name>&<lastName>&<mail>', methods = ['GET'])
 def getUserByNameLastMail(name, lastName, mail):
     try:
@@ -684,6 +767,7 @@ def getUserByNameLastMail(name, lastName, mail):
             'error': str(ex)
         }), 500
     
+# Conseguir todas las salas libres en cierta fecha y edificio
 @app.route('/freeRooms/<date>&<building>', methods=['GET'])
 def getFreeRooms(date, building):
     try:
@@ -724,10 +808,19 @@ def getFreeRooms(date, building):
             "error": str(e)
         }), 500
 
+# Conseguir todas las reservas de un usuario con mail
 @app.route('/user/<mail>/reservations', methods=['GET'])
 @token_required
 def getUserMailReservations(mail):
     try:
+        rol = request.role
+        if rol != "librarian" or rol != "administrator" :
+            return jsonify({
+                "success": False,
+                "description": "Usuario no autorizado",
+                
+            }), 401
+        
         with connection.cursor() as cursor:
             query_user = "SELECT ci FROM user WHERE mail = %s"
             cursor.execute(query_user, (mail,))
@@ -791,12 +884,87 @@ def getUserMailReservations(mail):
             "description": "Error al obtener las reservas del usuario",
             "error": str(e)
         }), 500
-
-
-@app.route('/user/<int:ci>/reservations', methods=['GET'])
+    
+# Conseguir todas las reservas de un usuario con cédula
+@app.route('/user/<ci>/reservations', methods=['GET'])
 @token_required
 def getUserCiReservations(ci):
     try:
+        rol = request.role
+        if rol != "librarian" or rol != "administrator" :
+            return jsonify({
+                "success": False,
+                "description": "Usuario no autorizado",
+                
+            }), 401
+        
+        ci = int(ci)
+        with connection.cursor() as cursor:
+            query_groups = """
+                SELECT DISTINCT studyGroup.studyGroupId, studyGroup.studyGroupName
+                FROM studyGroup
+                LEFT JOIN studyGroupParticipant ON studyGroup.studyGroupId = studyGroupParticipant.studyGroupId
+                WHERE studyGroup.leader = %s OR studyGroupParticipant.member = %s
+            """
+            cursor.execute(query_groups, (ci, ci))
+            groups = cursor.fetchall()
+
+            if not groups:
+                return jsonify({
+                    "success": True,
+                    "message": "El usuario no tiene grupos asociados.",
+                    "reservations": []
+                }), 200
+
+            group_ids = tuple(g["studyGroupId"] for g in groups)
+
+            query_reservations = f"""
+                SELECT reservation.studyGroupId, studyGroup.studyGroupName, studyRoom.roomName, studyRoom.buildingName, reservation.date, shift.startTime, shift.endTime, reservation.state, reservation.assignedLibrarian
+                FROM reservation
+                INNER JOIN studyGroup ON reservation.studyGroupId = studyGroup.studyGroupId
+                INNER JOIN studyRoom ON reservation.studyRoomId = studyRoom.studyRoomId
+                INNER JOIN shift ON reservation.shiftId = shift.shiftId
+                WHERE reservation.studyGroupId IN {group_ids}
+                ORDER BY reservation.date DESC
+            """
+
+            cursor.execute(query_reservations)
+            reservations = cursor.fetchall()
+
+            for r in reservations:
+                if isinstance(r["startTime"], timedelta):
+                    r["startTime"] = str(r["startTime"])
+                if isinstance(r["endTime"], timedelta):
+                    r["endTime"] = str(r["endTime"])
+
+            return jsonify({
+                "success": True,
+                "userCi": ci,
+                "reservations": reservations
+            }), 200
+
+    except Exception as e:
+        print("Error al obtener las reservas del usuario:", e)
+        return jsonify({
+            "success": False,
+            "description": "Error al obtener las reservas del usuario",
+            "error": str(e)
+        }), 500
+
+# Conseguir todas las reservas de un usuario con token
+@app.route('/myReservations', methods=['GET'])
+@token_required
+def getUserReservations():
+    try:
+        rol = request.role
+        if rol != "student" or rol != "professor" :
+            return jsonify({
+                "success": False,
+                "description": "Usuario no autorizado",
+                
+            }), 401
+        
+        ci = request.ci
         with connection.cursor() as cursor:
             query_groups = """
                 SELECT DISTINCT studyGroup.studyGroupId, studyGroup.studyGroupName
@@ -849,11 +1017,21 @@ def getUserCiReservations(ci):
             "error": str(e)
         }), 500
     
-@app.route('/user/<ci>/groupRequest', methods = ['GET'])
-def getAllUserGroupRequests(ci):
+# Conseguir todas las solicitudes de un usuario
+@app.route('/myGroupRequests', methods = ['GET'])
+@token_required
+def getAllUserGroupRequests():
     try:
+        rol = request.role
+        if rol != "student" or rol != "professor" :
+            return jsonify({
+                "success": False,
+                "description": "Usuario no autorizado",
+                
+            }), 401
+        
         cursor = connection.cursor(DictCursor)
-        ci = int(ci)
+        ci = request.ci
 
         cursor.execute('''
             SELECT 
@@ -898,12 +1076,22 @@ def getAllUserGroupRequests(ci):
             'description': 'No se pudieron encontrar las solicitudes.',
             'error': str(ex)
         }), 500
-    
-@app.route('/user/<ci>/myGroups', methods = ['GET'])
-def getAllGroups(ci):
+
+# Conseguir información de todo grupo del que se es parte
+@app.route('/myGroups', methods = ['GET'])
+@token_required
+def getAllGroups():
     try:
+        rol = request.role
+        if rol != "student" or rol != "professor" :
+            return jsonify({
+                "success": False,
+                "description": "Usuario no autorizado",
+                
+            }), 401
+        
         cursor = connection.cursor(DictCursor)
-        ci = int(ci)
+        ci = request.ci
 
         cursor.execute(''' 
             SELECT 
@@ -960,21 +1148,47 @@ def getAllGroups(ci):
             'error': str(ex)
         }), 500
     
-@app.route('/deleteGroup/<groupId>', methods = ['DELETE'])
+# Eliminar un grupo cuando se es el líder
+@app.route('/deleteMyGroup/<groupId>', methods = ['DELETE'])
+@token_required
 def deleteGroupById(groupId):
     try:
+        rol = request.role
+        if rol != "student" or rol != "professor" :
+            return jsonify({
+                "success": False,
+                "description": "Usuario no autorizado",
+                
+            }), 401
+        
         cursor = connection.cursor()
+        ci = request.ci
         groupId = int(groupId)
-        cursor.execute(''' 
-            DELETE FROM studyGroup
-            WHERE studyGroupId = %s;
-        ''', (groupId))
-        cursor.close()
 
-        return jsonify({
-            'success': True,
-            'description': 'El grupo se ha eliminado con éxito.'
-        })
+        cursor.execute(''' 
+            SELECT sG.leader AS leader
+            FROM studyGroup sG
+            WHERE sG.studyGroupId = %s
+        ''', (groupId))
+        leaderData = cursor.fetchone()
+        leaderCi = leaderData['leader']
+
+        if ci != leaderCi:
+            return jsonify({
+                'success': False,
+                'description': 'Solo se puede eliminar un grupo si eres el líder.'
+            })
+        else:
+            cursor.execute(''' 
+                DELETE FROM studyGroup
+                WHERE studyGroupId = %s AND status = 'Activo';
+            ''', (groupId))
+            cursor.close()
+
+            return jsonify({
+                'success': True,
+                'description': 'El grupo se ha eliminado con éxito.'
+            })
 
     except Exception as ex:
         return jsonify({
@@ -982,10 +1196,20 @@ def deleteGroupById(groupId):
             'description': 'No se ha podido eliminar el grupo.',
             'error': str(ex)
         })
-@app.route('/getGroupInformation/<groupId>', methods=['GET'])
+    
+# Conseguir información de un grupo donde se es el líder o un miembro
+@app.route('/getMyGroupInformation/<groupId>', methods=['GET'])
 @token_required
 def getGroupInformation(groupId):
     try:
+        rol = request.role
+        if rol != "student" or rol != "professor" :
+            return jsonify({
+                "success": False,
+                "description": "Usuario no autorizado",
+                
+            }), 401
+        
         cursor = connection.cursor(DictCursor)
         ci = request.ci
         groupId = int(groupId)
@@ -1054,11 +1278,21 @@ def getGroupInformation(groupId):
             'error': str(ex)
         }), 500
 
-@app.route('/user/<ci>/group/<groupId>/acceptRequest', methods = ['PATCH'])
-def acceptUserRequest(ci, groupId):
+# Aceptar una solicitud
+@app.route('/group/<groupId>/acceptRequest', methods = ['PATCH'])
+@token_required
+def acceptUserRequest(groupId):
     try:
+        rol = request.role
+        if rol != "student" or rol != "professor" :
+            return jsonify({
+                "success": False,
+                "description": "Usuario no autorizado",
+                
+            }), 401
+        
         cursor = connection.cursor()
-        ci = int(ci)
+        ci = request.ci
         groupId = int(groupId)
         
         cursor.execute(''' 
@@ -1084,11 +1318,21 @@ def acceptUserRequest(ci, groupId):
             'error': str(ex)
         }), 500
     
-@app.route('/user/<ci>/group/<groupId>/denyRequest', methods = ['PATCH'])
-def denyGroupRequest(ci, groupId):
+# Rechazar una solicitud
+@app.route('/group/<groupId>/denyRequest', methods = ['PATCH'])
+@token_required
+def denyGroupRequest(groupId):
     try:
+        rol = request.role
+        if rol != "student" or rol != "professor" :
+            return jsonify({
+                "success": False,
+                "description": "Usuario no autorizado",
+                
+            }), 401
+        
         cursor = connection.cursor()
-        ci = int(ci)
+        ci = request.ci
         groupId = int(groupId)
 
         cursor.execute(''' 
@@ -1108,6 +1352,7 @@ def denyGroupRequest(ci, groupId):
             'description': 'No se pudo procesar la solicitud.'
         }), 500
     
+# Eliminar un usuario de un grupo
 @app.route('/deleteUser/<studyGroupId>/<userId>', methods=['DELETE'])
 @token_required
 def deleteUserById(studyGroupId, userId):
