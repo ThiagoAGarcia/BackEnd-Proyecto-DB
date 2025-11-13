@@ -7,7 +7,7 @@ from encrypt import hash_pwd
 from config import config
 from db import connection
 from functools import wraps
-from pymysql.cursors import DictCursor
+
 
 def token_required(f):
     @wraps(f)
@@ -75,7 +75,8 @@ def getUserMailSanctions(mail):
                 
             }), 401
         
-        cursor = connection.cursor(DictCursor)
+        conn = connection()
+        cursor = conn.cursor()
         cursor.execute("""
             SELECT 
                 u.mail, 
@@ -118,7 +119,8 @@ def getUserCiSanctions(ci):
                 "description": "Usuario no autorizado",
             }), 401
         
-        cursor = connection.cursor()
+        conn = connection()
+        cursor = conn.cursor()
         ci = int(ci)
 
         cursor.execute("""
@@ -142,7 +144,7 @@ def getUserCiSanctions(ci):
         return jsonify({'sanctions': sanctions, 'success': True}), 200
 
     except Exception as ex:
-        connection.rollback()
+        conn.rollback()
         return jsonify({
             'success': False,
             'description': 'No se pudieron ver tus sanciones',
@@ -161,7 +163,8 @@ def getMySanctions():
                 "description": "Usuario no autorizado",
             }), 401
         
-        cursor = connection.cursor()
+        conn = connection()
+        cursor = conn.cursor()
         ci = request.ci
 
         cursor.execute("""
@@ -185,7 +188,7 @@ def getMySanctions():
         return jsonify({'sanctions': sanctions, 'success': True}), 200
 
     except Exception as ex:
-        connection.rollback()
+        conn.rollback()
         return jsonify({
             'success': False,
             'description': 'No se pudieron ver tus sanciones',
@@ -222,12 +225,13 @@ def createCareer():
                 'description': 'Tipo de carrera inválido'
             }), 400
 
-        cursor = connection.cursor()
+        conn = connection()
+        cursor = conn.cursor()
         cursor.execute(
             "INSERT INTO career (careerName, planYear, facultyId, type) VALUES (%s, %s, %s, %s)",
             (careerName, planYear, facultyId, type_)
         )
-        connection.commit()
+        conn.commit()
         cursor.close()
 
         return jsonify({
@@ -236,7 +240,7 @@ def createCareer():
         }), 201
 
     except Exception as ex:
-        connection.rollback()
+        conn.rollback()
         return jsonify({
             'success': False,
             'description': 'Error al crear la carrera',
@@ -248,7 +252,8 @@ def createCareer():
 @token_required
 def getUserByCareer(careerID):
     try:
-        cursor = connection.cursor(DictCursor)
+        conn = connection()
+        cursor = conn.cursor()
         SQL = """
             SELECT u.name, u.lastName
             FROM user u
@@ -283,7 +288,8 @@ def getUserByCareer(careerID):
 @app.route('/users', methods=['GET'])
 def getUsers():
     try:
-        cursor = connection.cursor()
+        conn = connection()
+        cursor = conn.cursor()
         cursor.execute("SELECT name, lastName FROM user")
         queryResults = cursor.fetchall()
         users = []
@@ -301,13 +307,15 @@ def getUsers():
 @app.route('/career', methods=['GET'])
 def getCareers():
     try:
-        cursor = connection.cursor()
+        conn = connection()
+        cursor = conn.cursor()
         cursor.execute("SELECT careerId, careerName, planYear, facultyId, type FROM career")
         results = cursor.fetchall()
         cursor.close()
-
+        
         careers = []
         for row in results:
+            
             careers.append({
                 'careerId': row['careerId'],
                 'careerName': row['careerName'],
@@ -349,7 +357,8 @@ def postRegister():
                 'description': 'La contraseña es muy corta (mínimo 9 caracteres)'
             }), 400
 
-        cursor = connection.cursor()
+        conn = connection()
+        cursor = conn.cursor()
 
     
         cursor.execute("SELECT ci FROM user WHERE ci = %s", (ci,))
@@ -408,7 +417,7 @@ def postRegister():
                 (ci, second_career)
             )
 
-        connection.commit()
+        conn.commit()
         cursor.close()
 
         return jsonify({
@@ -417,7 +426,7 @@ def postRegister():
         }), 201
 
     except Exception as ex:
-        connection.rollback()
+        conn.rollback()
         print("ERROR EN /register:", ex)
         return jsonify({
             'success': False,
@@ -460,7 +469,8 @@ def postRegisterAdmin():
                 'description': 'La contraseña es muy corta (mínimo 9 caracteres)'
             }), 400
 
-        cursor = connection.cursor()
+        conn = connection()
+        cursor = conn.cursor()
 
         # Buscar carrera
         cursor.execute("SELECT careerId FROM career WHERE careerName = %s", (career_name,))
@@ -499,7 +509,7 @@ def postRegisterAdmin():
             "INSERT INTO student (ci, careerId) VALUES (%s, %s)",
             (ci, second_career)
         )
-        connection.commit()
+        conn.commit()
         cursor.close()
 
         return jsonify({
@@ -508,7 +518,7 @@ def postRegisterAdmin():
         }), 201
 
     except Exception as ex:
-        connection.rollback()
+        conn.rollback()
         print("ERROR EN /registerAdmin:", ex)
         return jsonify({
             'success': False,
@@ -530,7 +540,8 @@ def postLogin():
                 'description': 'Faltan email o contraseña'
             }), 400
 
-        cursor = connection.cursor()
+        conn = connection()
+        cursor = conn.cursor()
 
         # Buscar el hash de la contraseña
         cursor.execute("SELECT password FROM login WHERE mail = %s", (email,))
@@ -615,7 +626,8 @@ def newReservation():
                 'description': 'Faltan datos obligatorios'
             }), 400
 
-        cursor = connection.cursor()
+        conn = connection()
+        cursor = conn.cursor()
             
         if datetime.strptime(date, "%Y-%m-%d").date() < datetime.now().date():
             cursor.close()
@@ -657,7 +669,7 @@ def newReservation():
             VALUES (%s, %s, %s, %s, null, %s, %s)
         """, (studyGroupID, studyRoomId, date, shiftId, reservationCreateDate.date(), state))
         
-        connection.commit()
+        conn.commit()
         cursor.close()
         
         return jsonify({
@@ -685,7 +697,8 @@ def getGroupUser(groupId):
                 
             }), 401
         
-        cursor = connection.cursor(DictCursor)
+        conn = connection()
+        cursor = conn.cursor()
         ci = request.ci
         groupId = int(groupId)
 
@@ -786,7 +799,8 @@ def sendGroupRequest():
                 'success': False,
                 'description': 'Faltan datos obligatorios'
             }), 400
-        cursor = connection.cursor()
+        conn = connection()
+        cursor = conn.cursor()
 
         cursor.execute("SELECT leader FROM studyGroup WHERE studyGroupId = %s", (studyGroupId,))
         
@@ -802,7 +816,7 @@ def sendGroupRequest():
 
         cursor.execute("INSERT INTO groupRequest VALUES (%s, %s, DEFAULT, DEFAULT, DEFAULT)", (studyGroupId, receiver, ))
         
-        connection.commit()
+        conn.commit()
         cursor.close()
         
         return jsonify({
@@ -810,7 +824,7 @@ def sendGroupRequest():
             'description': 'Solicitud realizada correctamente'
         }), 201
     except Exception as ex:
-        connection.rollback()
+        conn.rollback()
         print("ERROR EN /createGroupRequest:", ex)
         return jsonify({
             'success': False,
@@ -822,7 +836,8 @@ def sendGroupRequest():
 @app.route('/users/<name>&<lastName>&<mail>', methods = ['GET'])
 def getUserByNameLastMail(name, lastName, mail):
     try:
-        cursor = connection.cursor(DictCursor)
+        conn = connection()
+        cursor = conn.cursor()
         name = str(name)
         lastName = str(lastName)
         mail = str(mail)
@@ -1136,7 +1151,8 @@ def getAllUserGroupRequests():
                 
             }), 401
         
-        cursor = connection.cursor(DictCursor)
+        conn = connection()
+        cursor = conn.cursor()
         ci = request.ci
 
         cursor.execute('''
@@ -1196,7 +1212,8 @@ def getAllGroups():
                 
             }), 401
         
-        cursor = connection.cursor(DictCursor)
+        conn = connection()
+        cursor = conn.cursor()
         ci = request.ci
 
         cursor.execute(''' 
@@ -1267,7 +1284,8 @@ def deleteGroupById(groupId):
                 
             }), 401
         
-        cursor = connection.cursor()
+        conn = connection()
+        cursor = conn.cursor()
         ci = request.ci
         groupId = int(groupId)
 
@@ -1316,7 +1334,8 @@ def getGroupInformation(groupId):
                 
             }), 401
         
-        cursor = connection.cursor(DictCursor)
+        conn = connection()
+        cursor = conn.cursor()
         ci = request.ci
         groupId = int(groupId)
 
@@ -1397,7 +1416,8 @@ def acceptUserRequest(groupId):
                 
             }), 401
         
-        cursor = connection.cursor()
+        conn = connection()
+        cursor = conn.cursor()
         ci = request.ci
         groupId = int(groupId)
         
@@ -1437,7 +1457,8 @@ def denyGroupRequest(groupId):
                 
             }), 401
         
-        cursor = connection.cursor()
+        conn = connection()
+        cursor = conn.cursor()
         ci = request.ci
         groupId = int(groupId)
 
@@ -1470,7 +1491,8 @@ def deleteUserById(studyGroupId, userId):
                 "description": "Usuario no autorizado",
                 
             }), 401
-        cursor = connection.cursor()
+        conn = connection()
+        cursor = conn.cursor()
 
         ci_sender = request.ci
 
@@ -1514,7 +1536,7 @@ def deleteUserById(studyGroupId, userId):
             DELETE FROM studyGroupParticipant
             WHERE studyGroupId = %s AND member = %s
         """, (studyGroupId, userId))
-        connection.commit()
+        conn.commit()
 
         return jsonify({
             "success": True,
@@ -1532,7 +1554,8 @@ def deleteUserById(studyGroupId, userId):
 @app.route('/campus', methods=['GET'])
 def getCampus():
     try:
-        cursor = connection.cursor()
+        conn = connection()
+        cursor = conn.cursor()
         cursor.execute("SELECT campusName FROM campus")
         results = cursor.fetchall()
         cursor.close()
