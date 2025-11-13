@@ -1019,6 +1019,64 @@ def getUserReservations():
             "error": str(e)
         }), 500
     
+# Conseguir todas las reservas en cierta fecha
+@app.route('/reservationsToday', methods = ['GET'])
+@token_required
+def getReservationsByDate():
+    try:
+        rol = request.role
+        if rol != "librarian" :
+            return jsonify({
+                "success": False,
+                "description": "Usuario no autorizado",
+                
+            }), 401
+        
+        cursor = connection.cursor(DictCursor)
+        cursor.execute(''' 
+            SELECT 
+                s.startTime AS start,
+                s.endTime AS end,
+                sR.roomName AS studyRoomName,
+                sR.buildingName AS building,
+                r.studyGroupId AS studyGroupId
+            FROM reservation r
+            JOIN shift s on r.shiftId = s.shiftId
+            JOIN studyRoom sR on r.studyRoomId = sR.studyRoomId
+            WHERE r.date = CURDATE();
+    ''')
+        results = cursor.fetchall()
+        reservations = []
+
+        if not results:
+            return jsonify({
+                'success': False,
+                'description': 'No se pudieron procesar las reservas.'
+            }), 404
+        
+        for row in results:
+            reservations.append({
+                "start": row['start'],
+                "end": row['end'],
+                "studyRoom": row['studyRoomName'],
+                "building": row['building'],
+                "studyGroupId": row['studyGroupId']
+            })
+
+        cursor.close()
+
+        return jsonify({
+            'success': True,
+            'description': 'Reservas el día de hoy.',
+            'reservations': reservations
+        })
+        
+    except Exception as ex:
+        return jsonify({
+            'success': False,
+            'description': 'No se pudo procesar la solicitud.'
+        }), 500
+
 # Conseguir todas las solicitudes de un usuario
 @app.route('/myGroupRequests', methods = ['GET'])
 @token_required
@@ -1199,17 +1257,16 @@ def deleteGroupById(groupId):
             'error': str(ex)
         })
     
-# Conseguir información de un grupo donde se es el líder o un miembro
-@app.route('/getMyGroupInformation/<groupId>', methods=['GET'])
+# Conseguir información de un grupo
+@app.route('/getGroupInformation/<groupId>', methods=['GET'])
 @token_required
 def getGroupInformation(groupId):
     try:
         rol = request.role
-        if rol != "student" or rol != "professor" :
+        if rol != "student" or rol != "professor" or "librarian":
             return jsonify({
                 "success": False,
                 "description": "Usuario no autorizado",
-                
             }), 401
         
         cursor = connection.cursor(DictCursor)
