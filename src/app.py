@@ -296,7 +296,8 @@ def getUsers():
     except Exception as ex:
         return jsonify({'description': 'Error', 'error': str(ex)})
 
-# Conseguir todas las carreras OBSOLETO
+
+# Conseguir todas las carreras
 @app.route('/career', methods=['GET'])
 def getCareers():
     try:
@@ -319,10 +320,113 @@ def getCareers():
 
     except Exception as ex:
         return jsonify({'success': False, 'description': 'Error', 'error': str(ex)}), 500
-
-# Registro de usuarios
+# Registro de usuario
 @app.route('/register', methods=['POST'])
 def postRegister():
+    try:
+        data = request.get_json()
+
+        ci = data.get('ci')
+        name = data.get('name')
+        lastname = data.get('lastName') 
+        email = data.get('email')
+        password = data.get('password')
+        careerId = data.get('career')
+        second_career = data.get('secondCareer')
+        campus = data.get('campus')
+
+        # Validar datos obligatorios
+        if not all([ci, name, lastname, email, password, careerId, campus]):
+            return jsonify({
+                'success': False,
+                'description': 'Faltan datos obligatorios'
+            }), 400
+
+        # Validar longitud de contraseña
+        if len(password) <= 8:
+            return jsonify({
+                'success': False,
+                'description': 'La contraseña es muy corta (mínimo 9 caracteres)'
+            }), 400
+
+        cursor = connection.cursor()
+
+    
+        cursor.execute("SELECT ci FROM user WHERE ci = %s", (ci,))
+        if cursor.fetchone():
+            cursor.close()
+            return jsonify({
+                'success': False,
+                'description': 'La cédula ya está en uso'
+            }), 409
+
+        
+        cursor.execute("SELECT mail FROM user WHERE mail = %s", (email,))
+        if cursor.fetchone():
+            cursor.close()
+            return jsonify({
+                'success': False,
+                'description': 'El correo electrónico ya está en uso'
+            }), 409
+            
+        # Buscar carrera
+        cursor.execute("SELECT careerId FROM career WHERE careerId = %s", (careerId,))
+        result = cursor.fetchone()
+
+        if not result:
+            cursor.close()
+            return jsonify({
+                'success': False,
+                'description': f'No se encontró la carrera \"{careerId}\"'
+            }), 404
+
+        careerId = result['careerId']
+
+        passwordHash = hash_pwd(password)
+
+        # Insertar en user
+        cursor.execute(
+            "INSERT INTO user (ci, name, lastName, mail) VALUES (%s, %s, %s, %s)",
+            (ci, name, lastname, email)
+        )
+
+        # Insertar en login
+        cursor.execute(
+            "INSERT INTO login (mail, password) VALUES (%s, %s)",
+            (email, passwordHash)
+        )
+
+        # Insertar en student
+        cursor.execute(
+            "INSERT INTO student (ci, careerId, campus) VALUES (%s, %s, %s)",
+            (ci, careerId, campus)
+        )
+
+        if second_career:
+            cursor.execute(
+                "INSERT INTO student (ci, careerId) VALUES (%s, %s)",
+                (ci, second_career)
+            )
+
+        connection.commit()
+        cursor.close()
+
+        return jsonify({
+            'success': True,
+            'description': 'Usuario registrado correctamente'
+        }), 201
+
+    except Exception as ex:
+        connection.rollback()
+        print("ERROR EN /register:", ex)
+        return jsonify({
+            'success': False,
+            'description': 'Error al registrar el usuario',
+            'error': str(ex)
+        }), 500
+# Registro de usuarios por administrador
+@app.route('/registerAdmin', methods=['POST'])
+def postRegisterAdmin():
     try:
         rol = request.role
         if rol != "administrator" :
@@ -405,7 +509,7 @@ def postRegister():
 
     except Exception as ex:
         connection.rollback()
-        print("ERROR EN /register:", ex)
+        print("ERROR EN /registerAdmin:", ex)
         return jsonify({
             'success': False,
             'description': 'Error al registrar el usuario',
@@ -1424,6 +1528,25 @@ def deleteUserById(studyGroupId, userId):
             "description": "Error al eliminar usuario del grupo",
             "error": str(e)
         }), 500
+# Conseguir todas las campus
+@app.route('/campus', methods=['GET'])
+def getCampus():
+    try:
+        cursor = connection.cursor()
+        cursor.execute("SELECT campusName FROM campus")
+        results = cursor.fetchall()
+        cursor.close()
 
+        campus = []
+        for row in results:
+            campus.append({
+                'campusName': row['campusName'],
+            })
+
+        return jsonify({'campus': campus, 'success': True}), 200
+
+    except Exception as ex:
+        return jsonify({'success': False, 'description': 'Error', 'error': str(ex)}), 500
+    
 if __name__ == '__main__':
     app.register_error_handler(404, pageNotFound)

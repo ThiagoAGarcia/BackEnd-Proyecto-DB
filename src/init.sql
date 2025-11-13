@@ -10,11 +10,9 @@ CREATE TABLE user (
 	ci INT PRIMARY KEY,
 	name VARCHAR(32) NOT NULL CHECK ( CHAR_LENGTH(name) >= 3 ),
     lastName VARCHAR(32) NOT NULL CHECK ( CHAR_LENGTH(lastName) >= 3 ),
-    mail VARCHAR(50) UNIQUE CHECK ( LOWER(mail) LIKE '%@correo.ucu.edu.uy' OR LOWER(mail) LIKE '%@ucu.edu.uy'),
-	profilePicture VARCHAR(100),
-    campus VARCHAR(32),
-    FOREIGN KEY (campus) REFERENCES campus(campusName)
+    mail VARCHAR(50) UNIQUE CHECK ( LOWER(mail) LIKE '%@correo.ucu.edu.uy' OR LOWER(mail) LIKE '%@ucu.edu.uy')
 );
+
 
 CREATE TABLE faculty (
 	facultyId INT PRIMARY KEY AUTO_INCREMENT,
@@ -90,6 +88,8 @@ CREATE TABLE studyGroupParticipant (
 CREATE TABLE student (
 	ci INT NOT NULL,
 	careerId INT NOT NULL,
+    campus VARCHAR(32),
+    FOREIGN KEY (campus) REFERENCES campus(campusName),
 	FOREIGN KEY (ci) REFERENCES user(ci),
 	FOREIGN KEY (careerId) REFERENCES career(careerId),
     PRIMARY KEY(ci, careerId)
@@ -97,6 +97,8 @@ CREATE TABLE student (
 
 CREATE TABLE professor (
 	ci INT PRIMARY KEY,
+    campus VARCHAR(32),
+    FOREIGN KEY (campus) REFERENCES campus(campusName),
 	FOREIGN KEY (ci) REFERENCES user(ci)
 );
 
@@ -107,6 +109,8 @@ CREATE TABLE administrator (
 
 CREATE TABLE librarian (
 	ci INT PRIMARY KEY,
+    buildingName VARCHAR(32),
+    FOREIGN KEY (buildingName) REFERENCES building(buildingName),
 	FOREIGN KEY (ci) REFERENCES user(ci)
 );
 
@@ -155,24 +159,24 @@ INSERT INTO campus VALUES
 ('Salto');
 
 INSERT INTO user VALUES
-(55897692, 'Agostina', 'Etchebarren', 'agostina.etchebarren@correo.ucu.edu.uy', NULL, 'Montevideo'),
-(55531973, 'Santiago', 'Aguerre', 'santiago.aguerre@correo.ucu.edu.uy', NULL, 'Montevideo'),
-(57004718, 'Thiago', 'Garcia', 'thiago.garcia@correo.ucu.edu.uy', NULL, 'Montevideo'),
-(55299080, 'Martina', 'Caetano', 'martina.caetano@correo.ucu.edu.uy', NULL, 'Montevideo'),
-(56309531, 'Pilar', 'Antelo', 'pilar.antelo@correo.ucu.edu.uy', NULL, 'Montevideo'),
-(56902752, 'Facundo', 'Píriz', 'facundo.piriz@correo.ucu.edu.uy', NULL, 'Montevideo'),
-(59283629, 'Diego', 'de Oliveira', 'diego.deoliveira@correo.ucu.edu.uy', NULL, 'Montevideo'),
-(52435831, 'Santiago', 'Blanco', 'santiago.blanco@correo.ucu.edu.uy', NULL, 'Montevideo'),
-(54729274, 'Lucia', 'Mallada', 'lucia.mallada@correo.ucu.edu.uy', NULL, 'Montevideo'),
-(52737428, 'Luana', 'Biurarrena', 'luana.biurarrena@correo.ucu.edu.uy', NULL, 'Montevideo'),
-(57389261, 'Ramiro', 'Casco', 'ramiro.casco@correo.ucu.edu.uy', NULL, 'Montevideo'),
-(32124436, 'Lourdes', 'Machado', 'lourdes.machado@ucu.edu.uy', NULL, 'Montevideo'),
-(36907777, 'David', 'Liesegang', 'david.liesegang@ucu.edu.uy', NULL, 'Montevideo'),
-(34567836, 'Rodrigo', 'Díaz', 'rodrigo.diaz@ucu.edu.uy', NULL, 'Montevideo'),
-(45615815, 'Martha', 'Lauria', 'martha.lauria@ucu.edu.uy', NULL, 'Montevideo'),
-(12345678, 'Verónica', 'Posadas', 'veronica.posadas@ucu.edu.uy', NULL, 'Montevideo'),
-(45673829, 'Franco', 'Portela', 'franco.portela@ucu.edu.uy', NULL, 'Montevideo'),
-(32749352, 'Saúl', 'Esquivel', 'saul.esquivel@ucu.edu.uy', NULL, 'Montevideo');
+(55897692, 'Agostina', 'Etchebarren', 'agostina.etchebarren@correo.ucu.edu.uy'),
+(55531973, 'Santiago', 'Aguerre', 'santiago.aguerre@correo.ucu.edu.uy'),
+(57004718, 'Thiago', 'Garcia', 'thiago.garcia@correo.ucu.edu.uy'),
+(55299080, 'Martina', 'Caetano', 'martina.caetano@correo.ucu.edu.uy'),
+(56309531, 'Pilar', 'Antelo', 'pilar.antelo@correo.ucu.edu.uy'),
+(56902752, 'Facundo', 'Píriz', 'facundo.piriz@correo.ucu.edu.uy'),
+(59283629, 'Diego', 'de Oliveira', 'diego.deoliveira@correo.ucu.edu.uy'),
+(52435831, 'Santiago', 'Blanco', 'santiago.blanco@correo.ucu.edu.uy'),
+(54729274, 'Lucia', 'Mallada', 'lucia.mallada@correo.ucu.edu.uy'),
+(52737428, 'Luana', 'Biurarrena', 'luana.biurarrena@correo.ucu.edu.uy'),
+(57389261, 'Ramiro', 'Casco', 'ramiro.casco@correo.ucu.edu.uy'),
+(32124436, 'Lourdes', 'Machado', 'lourdes.machado@ucu.edu.uy'),
+(36907777, 'David', 'Liesegang', 'david.liesegang@ucu.edu.uy'),
+(34567836, 'Rodrigo', 'Díaz', 'rodrigo.diaz@ucu.edu.uy'),
+(45615815, 'Martha', 'Lauria', 'martha.lauria@ucu.edu.uy'),
+(12345678, 'Verónica', 'Posadas', 'veronica.posadas@ucu.edu.uy'),
+(45673829, 'Franco', 'Portela', 'franco.portela@ucu.edu.uy'),
+(32749352, 'Saúl', 'Esquivel', 'saul.esquivel@ucu.edu.uy');
 
 INSERT INTO faculty VALUES
 (NULL, 'Facultad de Psicología y Bienestar Humano'),
@@ -305,31 +309,33 @@ INSERT INTO studyGroupParticipant VALUES
 (11, 52435831),
 (11, 54729274);
 
+
 INSERT INTO student VALUES
-(55897692, 6),
-(55531973, 6),
-(57004718, 6),
-(55299080, 7),
-(56309531, 6),
-(56902752, 6),
-(59283629, 6),
-(52435831, 6),
-(54729274, 3),
-(52737428, 3),
-(57389261, 4);
+(55897692, 6, 'Montevideo'),
+(55531973, 6, 'Montevideo'),
+(57004718, 6, 'Montevideo'),
+(55299080, 7, 'Montevideo'),
+(56309531, 6, 'Montevideo'),
+(56902752, 6, 'Montevideo'),
+(59283629, 6, 'Montevideo'),
+(52435831, 6, 'Montevideo'),
+(54729274, 3, 'Montevideo'),
+(52737428, 3, 'Montevideo'),
+(57389261, 4, 'Montevideo');
 
 INSERT INTO professor VALUES
-(36907777),
-(34567836),
-(45615815),
-(45673829),
-(32749352);
+(36907777, 'Montevideo'),
+(34567836, 'Montevideo'),
+(45615815, 'Montevideo'),
+(45673829, 'Montevideo'),
+(32749352, 'Montevideo');
+
 
 INSERT INTO administrator VALUES
 (12345678);
 
 INSERT INTO librarian VALUES
-(32124436);
+(32124436, 'Central');
 
 INSERT INTO reservation VALUES
 (1, 4, '2024-04-29', 5, 32124436, '2024-04-26', 'Finalizada'),
