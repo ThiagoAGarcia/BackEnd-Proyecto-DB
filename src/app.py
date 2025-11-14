@@ -45,14 +45,17 @@ def token_required(f):
     return decorated
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, resources={r"/*": {"origins": ["http://localhost:5173", "http://127.0.0.1:5173"]}})
+
 
 app.config['JSON_AS_ASCII'] = False
 app.config['JSONIFY_PRETTYPRINT_REGULAR'] = True
+app.config['JSONIFY_MIMETYPE'] = "application/json; charset=utf-8"
 
 @app.after_request
 def set_charset(response):
     response.headers["Content-Type"] = "application/json; charset=utf-8"
+    
     return response
 
 app.config.from_object(config['development'])
