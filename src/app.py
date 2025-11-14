@@ -7,7 +7,7 @@ from encrypt import hash_pwd
 from config import config
 from db import connection
 from functools import wraps
-from pymysql.cursors import DictCursor
+
 
 def token_required(f):
     @wraps(f)
@@ -45,14 +45,17 @@ def token_required(f):
     return decorated
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, resources={r"/*": {"origins": ["http://localhost:5173", "http://127.0.0.1:5173"]}})
+
 
 app.config['JSON_AS_ASCII'] = False
 app.config['JSONIFY_PRETTYPRINT_REGULAR'] = True
+app.config['JSONIFY_MIMETYPE'] = "application/json; charset=utf-8"
 
 @app.after_request
 def set_charset(response):
     response.headers["Content-Type"] = "application/json; charset=utf-8"
+    
     return response
 
 app.config.from_object(config['development'])
@@ -75,7 +78,8 @@ def getUserMailSanctions(mail):
                 
             }), 401
         
-        cursor = connection.cursor(DictCursor)
+        conn = connection()
+        cursor = conn.cursor()
         cursor.execute("""
             SELECT 
                 u.mail, 
@@ -118,7 +122,8 @@ def getUserCiSanctions(ci):
                 "description": "Usuario no autorizado",
             }), 401
         
-        cursor = connection.cursor()
+        conn = connection()
+        cursor = conn.cursor()
         ci = int(ci)
 
         cursor.execute("""
@@ -142,7 +147,7 @@ def getUserCiSanctions(ci):
         return jsonify({'sanctions': sanctions, 'success': True}), 200
 
     except Exception as ex:
-        connection.rollback()
+        conn.rollback()
         return jsonify({
             'success': False,
             'description': 'No se pudieron ver tus sanciones',
@@ -161,7 +166,8 @@ def getMySanctions():
                 "description": "Usuario no autorizado",
             }), 401
         
-        cursor = connection.cursor()
+        conn = connection()
+        cursor = conn.cursor()
         ci = request.ci
 
         cursor.execute("""
@@ -185,7 +191,7 @@ def getMySanctions():
         return jsonify({'sanctions': sanctions, 'success': True}), 200
 
     except Exception as ex:
-        connection.rollback()
+        conn.rollback()
         return jsonify({
             'success': False,
             'description': 'No se pudieron ver tus sanciones',
@@ -222,12 +228,13 @@ def createCareer():
                 'description': 'Tipo de carrera inválido'
             }), 400
 
-        cursor = connection.cursor()
+        conn = connection()
+        cursor = conn.cursor()
         cursor.execute(
             "INSERT INTO career (careerName, planYear, facultyId, type) VALUES (%s, %s, %s, %s)",
             (careerName, planYear, facultyId, type_)
         )
-        connection.commit()
+        conn.commit()
         cursor.close()
 
         return jsonify({
@@ -236,7 +243,7 @@ def createCareer():
         }), 201
 
     except Exception as ex:
-        connection.rollback()
+        conn.rollback()
         return jsonify({
             'success': False,
             'description': 'Error al crear la carrera',
@@ -248,7 +255,8 @@ def createCareer():
 @token_required
 def getUserByCareer(careerID):
     try:
-        cursor = connection.cursor(DictCursor)
+        conn = connection()
+        cursor = conn.cursor()
         SQL = """
             SELECT u.name, u.lastName
             FROM user u
@@ -283,7 +291,8 @@ def getUserByCareer(careerID):
 @app.route('/users', methods=['GET'])
 def getUsers():
     try:
-        cursor = connection.cursor()
+        conn = connection()
+        cursor = conn.cursor()
         cursor.execute("SELECT name, lastName FROM user")
         queryResults = cursor.fetchall()
         users = []
@@ -296,17 +305,20 @@ def getUsers():
     except Exception as ex:
         return jsonify({'description': 'Error', 'error': str(ex)})
 
-# Conseguir todas las carreras OBSOLETO
+
+# Conseguir todas las carreras
 @app.route('/career', methods=['GET'])
 def getCareers():
     try:
-        cursor = connection.cursor()
+        conn = connection()
+        cursor = conn.cursor()
         cursor.execute("SELECT careerId, careerName, planYear, facultyId, type FROM career")
         results = cursor.fetchall()
         cursor.close()
-
+        
         careers = []
         for row in results:
+            
             careers.append({
                 'careerId': row['careerId'],
                 'careerName': row['careerName'],
@@ -319,10 +331,114 @@ def getCareers():
 
     except Exception as ex:
         return jsonify({'success': False, 'description': 'Error', 'error': str(ex)}), 500
-
-# Registro de usuarios
+# Registro de usuario
 @app.route('/register', methods=['POST'])
 def postRegister():
+    try:
+        data = request.get_json()
+
+        ci = data.get('ci')
+        name = data.get('name')
+        lastname = data.get('lastName') 
+        email = data.get('email')
+        password = data.get('password')
+        careerId = data.get('career')
+        second_career = data.get('secondCareer')
+        campus = data.get('campus')
+
+        # Validar datos obligatorios
+        if not all([ci, name, lastname, email, password, careerId, campus]):
+            return jsonify({
+                'success': False,
+                'description': 'Faltan datos obligatorios'
+            }), 400
+
+        # Validar longitud de contraseña
+        if len(password) <= 8:
+            return jsonify({
+                'success': False,
+                'description': 'La contraseña es muy corta (mínimo 9 caracteres)'
+            }), 400
+
+        conn = connection()
+        cursor = conn.cursor()
+
+    
+        cursor.execute("SELECT ci FROM user WHERE ci = %s", (ci,))
+        if cursor.fetchone():
+            cursor.close()
+            return jsonify({
+                'success': False,
+                'description': 'La cédula ya está en uso'
+            }), 409
+
+        
+        cursor.execute("SELECT mail FROM user WHERE mail = %s", (email,))
+        if cursor.fetchone():
+            cursor.close()
+            return jsonify({
+                'success': False,
+                'description': 'El correo electrónico ya está en uso'
+            }), 409
+            
+        # Buscar carrera
+        cursor.execute("SELECT careerId FROM career WHERE careerId = %s", (careerId,))
+        result = cursor.fetchone()
+
+        if not result:
+            cursor.close()
+            return jsonify({
+                'success': False,
+                'description': f'No se encontró la carrera \"{careerId}\"'
+            }), 404
+
+        careerId = result['careerId']
+
+        passwordHash = hash_pwd(password)
+
+        # Insertar en user
+        cursor.execute(
+            "INSERT INTO user (ci, name, lastName, mail) VALUES (%s, %s, %s, %s)",
+            (ci, name, lastname, email)
+        )
+
+        # Insertar en login
+        cursor.execute(
+            "INSERT INTO login (mail, password) VALUES (%s, %s)",
+            (email, passwordHash)
+        )
+
+        # Insertar en student
+        cursor.execute(
+            "INSERT INTO student (ci, careerId, campus) VALUES (%s, %s, %s)",
+            (ci, careerId, campus)
+        )
+
+        if second_career:
+            cursor.execute(
+                "INSERT INTO student (ci, careerId) VALUES (%s, %s)",
+                (ci, second_career)
+            )
+
+        conn.commit()
+        cursor.close()
+
+        return jsonify({
+            'success': True,
+            'description': 'Usuario registrado correctamente'
+        }), 201
+
+    except Exception as ex:
+        conn.rollback()
+        print("ERROR EN /register:", ex)
+        return jsonify({
+            'success': False,
+            'description': 'Error al registrar el usuario',
+            'error': str(ex)
+        }), 500
+# Registro de usuarios por administrador
+@app.route('/registerAdmin', methods=['POST'])
+def postRegisterAdmin():
     try:
         rol = request.role
         if rol != "administrator" :
@@ -356,7 +472,8 @@ def postRegister():
                 'description': 'La contraseña es muy corta (mínimo 9 caracteres)'
             }), 400
 
-        cursor = connection.cursor()
+        conn = connection()
+        cursor = conn.cursor()
 
         # Buscar carrera
         cursor.execute("SELECT careerId FROM career WHERE careerName = %s", (career_name,))
@@ -395,7 +512,7 @@ def postRegister():
             "INSERT INTO student (ci, careerId) VALUES (%s, %s)",
             (ci, second_career)
         )
-        connection.commit()
+        conn.commit()
         cursor.close()
 
         return jsonify({
@@ -404,8 +521,8 @@ def postRegister():
         }), 201
 
     except Exception as ex:
-        connection.rollback()
-        print("ERROR EN /register:", ex)
+        conn.rollback()
+        print("ERROR EN /registerAdmin:", ex)
         return jsonify({
             'success': False,
             'description': 'Error al registrar el usuario',
@@ -426,7 +543,8 @@ def postLogin():
                 'description': 'Faltan email o contraseña'
             }), 400
 
-        cursor = connection.cursor()
+        conn = connection()
+        cursor = conn.cursor()
 
         # Buscar el hash de la contraseña
         cursor.execute("SELECT password FROM login WHERE mail = %s", (email,))
@@ -511,7 +629,8 @@ def newReservation():
                 'description': 'Faltan datos obligatorios'
             }), 400
 
-        cursor = connection.cursor()
+        conn = connection()
+        cursor = conn.cursor()
             
         if datetime.strptime(date, "%Y-%m-%d").date() < datetime.now().date():
             cursor.close()
@@ -553,7 +672,7 @@ def newReservation():
             VALUES (%s, %s, %s, %s, null, %s, %s)
         """, (studyGroupID, studyRoomId, date, shiftId, reservationCreateDate.date(), state))
         
-        connection.commit()
+        conn.commit()
         cursor.close()
         
         return jsonify({
@@ -581,7 +700,8 @@ def getGroupUser(groupId):
                 
             }), 401
         
-        cursor = connection.cursor(DictCursor)
+        conn = connection()
+        cursor = conn.cursor()
         ci = request.ci
         groupId = int(groupId)
 
@@ -682,7 +802,8 @@ def sendGroupRequest():
                 'success': False,
                 'description': 'Faltan datos obligatorios'
             }), 400
-        cursor = connection.cursor()
+        conn = connection()
+        cursor = conn.cursor()
 
         cursor.execute("SELECT leader FROM studyGroup WHERE studyGroupId = %s", (studyGroupId,))
         
@@ -698,7 +819,7 @@ def sendGroupRequest():
 
         cursor.execute("INSERT INTO groupRequest VALUES (%s, %s, DEFAULT, DEFAULT, DEFAULT)", (studyGroupId, receiver, ))
         
-        connection.commit()
+        conn.commit()
         cursor.close()
         
         return jsonify({
@@ -706,7 +827,7 @@ def sendGroupRequest():
             'description': 'Solicitud realizada correctamente'
         }), 201
     except Exception as ex:
-        connection.rollback()
+        conn.rollback()
         print("ERROR EN /createGroupRequest:", ex)
         return jsonify({
             'success': False,
@@ -718,7 +839,8 @@ def sendGroupRequest():
 @app.route('/users/<name>&<lastName>&<mail>', methods = ['GET'])
 def getUserByNameLastMail(name, lastName, mail):
     try:
-        cursor = connection.cursor(DictCursor)
+        conn = connection()
+        cursor = conn.cursor()
         name = str(name)
         lastName = str(lastName)
         mail = str(mail)
@@ -1090,7 +1212,8 @@ def getAllUserGroupRequests():
                 
             }), 401
         
-        cursor = connection.cursor(DictCursor)
+        conn = connection()
+        cursor = conn.cursor()
         ci = request.ci
 
         cursor.execute('''
@@ -1150,7 +1273,8 @@ def getAllGroups():
                 
             }), 401
         
-        cursor = connection.cursor(DictCursor)
+        conn = connection()
+        cursor = conn.cursor()
         ci = request.ci
 
         cursor.execute(''' 
@@ -1221,7 +1345,8 @@ def deleteGroupById(groupId):
                 
             }), 401
         
-        cursor = connection.cursor()
+        conn = connection()
+        cursor = conn.cursor()
         ci = request.ci
         groupId = int(groupId)
 
@@ -1269,7 +1394,8 @@ def getGroupInformation(groupId):
                 "description": "Usuario no autorizado",
             }), 401
         
-        cursor = connection.cursor(DictCursor)
+        conn = connection()
+        cursor = conn.cursor()
         ci = request.ci
         groupId = int(groupId)
 
@@ -1350,7 +1476,8 @@ def acceptUserRequest(groupId):
                 
             }), 401
         
-        cursor = connection.cursor()
+        conn = connection()
+        cursor = conn.cursor()
         ci = request.ci
         groupId = int(groupId)
         
@@ -1390,7 +1517,8 @@ def denyGroupRequest(groupId):
                 
             }), 401
         
-        cursor = connection.cursor()
+        conn = connection()
+        cursor = conn.cursor()
         ci = request.ci
         groupId = int(groupId)
 
@@ -1423,7 +1551,8 @@ def deleteUserById(studyGroupId, userId):
                 "description": "Usuario no autorizado",
                 
             }), 401
-        cursor = connection.cursor()
+        conn = connection()
+        cursor = conn.cursor()
 
         ci_sender = request.ci
 
@@ -1467,7 +1596,7 @@ def deleteUserById(studyGroupId, userId):
             DELETE FROM studyGroupParticipant
             WHERE studyGroupId = %s AND member = %s
         """, (studyGroupId, userId))
-        connection.commit()
+        conn.commit()
 
         return jsonify({
             "success": True,
@@ -1481,6 +1610,26 @@ def deleteUserById(studyGroupId, userId):
             "description": "Error al eliminar usuario del grupo",
             "error": str(e)
         }), 500
+# Conseguir todas las campus
+@app.route('/campus', methods=['GET'])
+def getCampus():
+    try:
+        conn = connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT campusName FROM campus")
+        results = cursor.fetchall()
+        cursor.close()
 
+        campus = []
+        for row in results:
+            campus.append({
+                'campusName': row['campusName'],
+            })
+
+        return jsonify({'campus': campus, 'success': True}), 200
+
+    except Exception as ex:
+        return jsonify({'success': False, 'description': 'Error', 'error': str(ex)}), 500
+    
 if __name__ == '__main__':
     app.register_error_handler(404, pageNotFound)
