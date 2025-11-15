@@ -212,7 +212,7 @@ INSERT INTO login VALUES
 ('lucia.mallada@correo.ucu.edu.uy', '$2b$16$f4fiDRwV4pzVg32oRXwYDeX/10BKpi1Qu5F4RsGoeCe65d4WI0w6a'), -- jshs8294mjdns999
 ('luana.biurarrena@correo.ucu.edu.uy', '$2b$16$QGBIR05MMT5.CFZ1O/54FeVd4QFRne7Ryu6KARSSnhRa24M5GpGCO'), -- ajdcn765cks1123
 ('ramiro.casco@correo.ucu.edu.uy', '$2b$16$ZZ.XYYaIqRvEm2fg4uvII.7qoFrhYWcS5XqidOWETnikSfQlGMAPW'), -- lush8888
-('lourdes.machado@ucu.edu.uy', '$2b$16$tPSpm1OpTfL66GHY3tvKFunXgHlzlqRMTop3U3bZ9iTMmilxarmXS'), -- jupiter1974
+('lourdes.machado@ucu.edu.uy', '$2b$16$/nHWUxWZBEx3J/yArDj/NeVt4W23DSyZo84tbblKz1ay6/hLPAsXC'), -- jupiter1974
 ('david.liesegang@ucu.edu.uy', '$2b$16$w9m5XPNPUVKRR1VhJ/WXs.yEUkv3seWC2e0vXCqhz9O2HM/iqB.dm'), -- chocolate1972
 ('rodrigo.diaz@ucu.edu.uy', '$2b$16$nKUf5sdg1McD0/EKWb2PtebGsSKg8O9jK6.vt7VgD04tC6WQg0IcW'), -- soyUnNPC2333
 ('martha.lauria@ucu.edu.uy', '$2b$16$YiUwdugvAyxbHtmq4qRE4ewN/xHJTPnj7WDv9eHnIR57GJzwzaEjO'), -- iAmGoingToKillBill
