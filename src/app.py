@@ -369,6 +369,29 @@ def postRegister():
                 'description': 'Faltan datos obligatorios'
             }), 400
 
+        if len(ci) != 8:
+            return jsonify({
+                'success': False,
+                'description': 'ci invalida'
+            }), 400
+
+        valueCheck = 0
+        digitoVerificador = ci[7]
+        multiplicador = '2987634'
+        for i in range(len(ci) - 1):
+            valueCheck += int(ci[i]) * int(multiplicador[i])
+        digitoVerificadorChequeada = valueCheck % 10
+        digitoVerificadorChequeada = (10 - digitoVerificadorChequeada) % 10
+
+
+        if int(digitoVerificador) != int(digitoVerificadorChequeada):
+            return jsonify({
+                'success': False,
+                'description': 'La ci es invalida'
+            }), 400
+
+
+
         if len(password) <= 8:
             return jsonify({
                 'success': False,
@@ -472,6 +495,26 @@ def postRegisterAdmin():
             return jsonify({
                 'success': False,
                 'description': 'Faltan datos obligatorios'
+            }), 400
+
+        if len(ci) != 8:
+            return jsonify({
+                'success': False,
+                'description': 'ci invalida'
+            }), 400
+
+        valueCheck = 0
+        digitoVerificador = ci[7]
+        multiplicador = '2987634'
+        for i in range(len(ci) - 1):
+            valueCheck += int(ci[i]) * int(multiplicador[i])
+        digitoVerificadorChequeada = valueCheck % 10
+        digitoVerificadorChequeada = (10 - digitoVerificadorChequeada) % 10
+
+        if int(digitoVerificador) != int(digitoVerificadorChequeada):
+            return jsonify({
+                'success': False,
+                'description': 'La ci es invalida'
             }), 400
 
         if len(password) <= 8:
