@@ -330,7 +330,6 @@ INSERT INTO professor VALUES
 (45673829, 'Montevideo'),
 (32749352, 'Montevideo');
 
-
 INSERT INTO administrator VALUES
 (12345678);
 
