@@ -13,7 +13,6 @@ CREATE TABLE user (
     mail VARCHAR(50) UNIQUE CHECK ( LOWER(mail) LIKE '%@correo.ucu.edu.uy' OR LOWER(mail) LIKE '%@ucu.edu.uy')
 );
 
-
 CREATE TABLE faculty (
 	facultyId INT PRIMARY KEY AUTO_INCREMENT,
 	facultyName VARCHAR(100) CHECK ( CHAR_LENGTH(facultyName) >= 3 )
