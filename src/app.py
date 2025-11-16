@@ -1084,7 +1084,8 @@ def getFreeRooms(building, date):
                 sR.roomName AS Sala, 
                 sR.buildingName AS Edificio, 
                 DATE_FORMAT(s.startTime, '%%H:%%i') AS Inicio,
-                DATE_FORMAT(s.endTime, '%%H:%%i') AS Fin
+                DATE_FORMAT(s.endTime, '%%H:%%i') AS Fin,
+                sR.capacity AS Capacidad
             FROM studyRoom sR
             JOIN shift s
             WHERE sR.buildingName = %s AND (sR.studyRoomId, s.shiftId) NOT IN (
@@ -1105,14 +1106,18 @@ def getFreeRooms(building, date):
         
         freeRooms = []
 
+        id = 0
         for row in results:
             freeRooms.append({
                 "studyRoom": row['Sala'],
                 "building": row['Edificio'],
                 "start": str(row['Inicio']),
                 "end": str(row['Fin']),
-                "date": str(date)
+                "date": str(date),
+                "capacity": row['Capacidad'],
+                "id": id
             })
+            id = id + 1
 
         cursor.close()
 
