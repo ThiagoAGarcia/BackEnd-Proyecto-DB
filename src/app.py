@@ -311,11 +311,12 @@ def getUsers():
         ciUser = request.ci
         conn = connection()
         cursor = conn.cursor()
-
-        cursor.execute(
-            "SELECT ci, name, lastName FROM user WHERE ci != %s",
-            (ciUser,)
-        )
+        cursor.execute('''
+            SELECT u.ci, u.name, u.lastName 
+            FROM user u
+            JOIN login l ON u.mail = l.mail
+            WHERE u.ci != %s
+        ''', (ciUser,))
         queryResults = cursor.fetchall()
 
         tables = ['student', 'professor', 'librarian', 'administrator']
@@ -333,14 +334,12 @@ def getUsers():
             if not roles:
                 roles = ['unknown']
 
-            user = {
+            users.append({
                 'ci': row['ci'],
                 'name': row['name'],
                 'lastName': row['lastName'],
                 'roles': roles
-            }
-
-            users.append(user)
+            })
 
         output = jsonify({'users': users, 'success': True})
         output.headers.add("Access-Control-Allow-Origin", "*")
@@ -386,12 +385,13 @@ def deleteUserByCi(ci):
                 "description": "Usuario no autorizado"
             }), 401
 
+        ci = int(ci)
+
         conn = connection()
         cursor = conn.cursor()
 
-        ci = int(ci)
-
-        cursor.execute("SELECT ci, mail FROM user WHERE ci = %s", (ci,))
+    
+        cursor.execute("SELECT mail FROM user WHERE ci = %s", (ci,))
         user = cursor.fetchone()
 
         if not user:
@@ -399,53 +399,20 @@ def deleteUserByCi(ci):
             conn.close()
             return jsonify({
                 "success": False,
-                "description": f"Usuario con cédula {ci} no encontrado"
+                "description": f"Usuario con CI {ci} no encontrado"
             }), 404
 
         user_mail = user["mail"]
 
-        roles = []
-        role_tables = ['student', 'professor', 'librarian', 'administrator']
-
-        for table in role_tables:
-            cursor.execute(f"SELECT 1 FROM {table} WHERE ci = %s LIMIT 1", (ci,))
-            if cursor.fetchone():
-                roles.append(table)
-
-        try:
-            for table in roles:
-                cursor.execute(f"DELETE FROM {table} WHERE ci = %s", (ci,))
-
-            cursor.execute("DELETE FROM login WHERE mail = %s", (user_mail,))
-
-            cursor.execute("DELETE FROM user WHERE ci = %s", (ci,))
-
-            conn.commit()
-        except Exception as ex_inner:
-            conn.rollback()
-
-            msg = "No se pudo eliminar el usuario."
-            if "1451" in str(ex_inner) or "foreign key constraint fails" in str(ex_inner).lower():
-                msg = (
-                    "No se puede eliminar el usuario porque tiene registros asociados "
-                    "(reservas, grupos de estudio, sanciones u otros datos relacionados)."
-                )
-
-            cursor.close()
-            conn.close()
-            return jsonify({
-                "success": False,
-                "description": msg,
-                "error": str(ex_inner)
-            }), 500
+        cursor.execute("DELETE FROM login WHERE mail = %s", (user_mail,))
+        conn.commit()
 
         cursor.close()
         conn.close()
 
         return jsonify({
             "success": True,
-            "description": f"Usuario {ci} eliminado correctamente",
-            "deletedRoles": roles if roles else ["unknown"]
+            "description": f"Usuario {ci} eliminado correctamente"
         }), 200
 
     except Exception as ex:
@@ -455,16 +422,13 @@ def deleteUserByCi(ci):
             conn.close()
         except:
             pass
-
+        
         return jsonify({
             "success": False,
-            "description": "Error al intentar eliminar el usuario",
+            "description": "Error al intentar eliminar el usuario del login",
             "error": str(ex)
         }), 500
 
-
-    except Exception as ex:
-        return jsonify({'success': False, 'description': 'Error', 'error': str(ex)}), 500
 
 # Registro de usuario
 @app.route('/register', methods=['POST'])
@@ -595,7 +559,7 @@ def getUserGroupRequest():
        conn = connection()
        cursor = conn.cursor()
 
-       cursor.execute("SELECT studyGroup.studyGroupName, groupRequest.requestDate FROM groupRequest JOIN studyGroup on studyGroup.studyGroupId = groupRequest.studyGroupId WHERE groupRequest.status = 'Pendiente' AND receiver = %s", (ci,))
+       cursor.execute("SELECT studyGroup.studyGroupName, groupRequest.requestDate, studyGroup.studyGroupId FROM groupRequest JOIN studyGroup on studyGroup.studyGroupId = groupRequest.studyGroupId WHERE groupRequest.status = 'Pendiente' AND receiver = %s", (ci,))
        result = cursor.fetchall()
 
 
@@ -1770,28 +1734,49 @@ def acceptUserRequest(groupId):
         ci = request.ci
         groupId = int(groupId)
 
+
         cursor.execute(''' 
             UPDATE groupRequest
             SET status = 'Aceptada'
             WHERE receiver = %s AND studyGroupId = %s;
         ''', (ci, groupId))
 
+    
+        if cursor.rowcount == 0:
+            cursor.close()
+            conn.close()
+            return jsonify({
+                'success': False,
+                'description': 'No se encontró una solicitud pendiente para este grupo.'
+            }), 404
+
+    
         cursor.execute(''' 
-            INSERT INTO studyGroupParticipant VALUES
-            (%s, %s)
+            INSERT INTO studyGroupParticipant (studyGroupId, member)
+            VALUES (%s, %s)
         ''', (groupId, ci))
+
+        conn.commit()
         cursor.close()
+        conn.close()
 
         return jsonify({
             'success': True,
             'description': 'Se ha aceptado la solicitud.'
-        })
+        }), 200
+
     except Exception as ex:
+        try:
+            conn.rollback()
+        except:
+            pass
+
         return jsonify({
             'success': False,
             'description': 'No se pudo procesar la solicitud.',
             'error': str(ex)
         }), 500
+
 
 
 # Rechazar una solicitud
