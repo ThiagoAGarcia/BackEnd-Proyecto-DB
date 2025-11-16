@@ -967,8 +967,19 @@ def sendGroupRequest():
         conn = connection()
         cursor = conn.cursor()
 
-        cursor.execute("SELECT leader FROM studyGroup WHERE studyGroupId = %s", (studyGroupId,))
+        cursor.execute("SELECT ci FROM administrator WHERE ci = %s", (receiver,))
+        is_admin = cursor.fetchone()
 
+        cursor.execute("SELECT ci FROM librarian WHERE ci = %s", (receiver,))
+        is_librarian = cursor.fetchone()
+
+        if is_admin or is_librarian:
+            return jsonify({
+                'success': False,
+                'description': 'No puedes enviar solicitudes a administradores o bibliotecarios'
+            }), 400
+
+        cursor.execute("SELECT leader FROM studyGroup WHERE studyGroupId = %s", (studyGroupId,))
         result = cursor.fetchone()
 
         leader = result['leader'] if result else None
@@ -1674,8 +1685,7 @@ def getAllUserGroupRequests():
             'error': str(ex)
         }), 500
 
-
-# Conseguir información de todo grupo del que se es parte
+# Ver todos los grupos en los que uno es parte como lider o integrante
 @app.route('/myGroups', methods=['GET'])
 @token_required
 def getAllGroups():
@@ -1692,27 +1702,27 @@ def getAllGroups():
 
         cursor.execute(''' 
             SELECT 
-                sG.studyGroupName AS groupName, 
-                sG.status AS groupStatus, 
-                u.name AS userName, 
-                u.lastName AS userLastName, 
-                u.mail AS userMail, 
-                u.profilePicture AS userPicture
-            FROM studyGroup sG
-            JOIN user u ON sG.leader = u.ci
-            WHERE u.ci = %s
-                UNION
+                sg.studyGroupName AS groupName,
+                sg.status AS groupStatus,
+                leader.name AS leaderName,
+                leader.lastName AS leaderLastName,
+                leader.mail AS leaderMail
+            FROM studyGroup sg
+            JOIN user leader ON sg.leader = leader.ci
+            WHERE sg.leader = %s AND sg.status = 'Activo'
+
+            UNION ALL
+
             SELECT 
-                sG.studyGroupName AS groupName, 
-                sG.status AS groupStatus, 
-                u.name AS userName, 
-                u.lastName AS userLastName, 
-                u.mail AS userMail, 
-                u.profilePicture AS userPicture
+                sg.studyGroupName AS groupName,
+                sg.status AS groupStatus,
+                leader.name AS leaderName,
+                leader.lastName AS leaderLastName,
+                leader.mail AS leaderMail
             FROM studyGroupParticipant sGp
-            JOIN user u ON sGp.member = u.ci
-            JOIN studyGroup sG ON sGp.studyGroupId = sG.studyGroupId
-            WHERE sGp.member = %s;
+            JOIN studyGroup sg ON sGp.studyGroupId = sg.studyGroupId
+            JOIN user leader ON sg.leader = leader.ci 
+            WHERE sGp.member = %s AND sg.status = 'Activo';
         ''', (ci, ci))
 
         results = cursor.fetchall()
@@ -1727,10 +1737,9 @@ def getAllGroups():
             groups.append({
                 'groupName': row['groupName'],
                 'groupState': row['groupStatus'],
-                'userName': row['userName'],
-                'userLastName': row['userLastName'],
-                'mail': row['userMail'],
-                'profilePicture': row['userPicture']
+                'leaderName': row['leaderName'],
+                'leaderLastName': row['leaderLastName'],
+                'leaderMail': row['leaderMail']
             })
         cursor.close()
 
@@ -1744,7 +1753,6 @@ def getAllGroups():
             'success': False,
             'error': str(ex)
         }), 500
-
 
 # Eliminar un grupo cuando se es el líder
 @app.route('/deleteMyGroup/<groupId>', methods=['DELETE'])
@@ -1936,7 +1944,6 @@ def acceptUserRequest(groupId):
         }), 500
 
 
-
 # Rechazar una solicitud
 @app.route('/group/<groupId>/denyRequest', methods=['PATCH'])
 @token_required
@@ -2042,7 +2049,6 @@ def deleteUserById(studyGroupId, userId):
             "error": str(e)
         }), 500
 
-
 # Conseguir todas las campus
 @app.route('/campus', methods=['GET'])
 def getCampus():
@@ -2063,7 +2069,6 @@ def getCampus():
 
     except Exception as ex:
         return jsonify({'success': False, 'description': 'Error', 'error': str(ex)}), 500
-
 
 @app.route('/userByCi', methods=['GET'])
 @token_required
@@ -2136,6 +2141,123 @@ def getUserbyCi():
     
     except Exception as ex:
         return jsonify({'success': False, 'description': 'Error', 'error': str(ex)}), 500
+
+#Buscar
+@app.route('/searchUsersRequest', methods=['GET'])
+@token_required
+def searchUsersRequest():
+    try:
+        if not user_has_role("student", "professor"):
+            return jsonify({
+                "success": False,
+                "description": "Usuario no autorizado",
+            }), 401
+
+        role = request.role
+        current_ci = request.ci
+
+        conn = connection()
+        cursor = conn.cursor()
+
+        text = request.args.get("text", "").strip()
+        search = f"%{text}%"
+
+        if role == 'student':
+            cursor.execute("""
+                SELECT 
+                    u.ci, u.name, u.lastName, u.mail
+                FROM user u
+                INNER JOIN student s ON u.ci = s.ci
+                WHERE 
+                    u.mail LIKE %s
+                    AND u.ci <> %s
+                ORDER BY u.name ASC
+            """, (search, current_ci))
+
+        if role == 'professor':
+            cursor.execute("""
+                SELECT 
+                    u.ci, u.name, u.lastName, u.mail,
+                    CASE
+                        WHEN s.ci IS NOT NULL THEN 'student'
+                        WHEN p.ci IS NOT NULL THEN 'professor'
+                    END AS role
+                FROM user u
+                LEFT JOIN student s ON u.ci = s.ci
+                LEFT JOIN professor p ON u.ci = p.ci
+                WHERE 
+                    u.mail LIKE %s
+                    AND u.ci <> %s
+                    AND (s.ci IS NOT NULL OR p.ci IS NOT NULL)
+                ORDER BY u.name ASC
+            """, (search, current_ci))
+
+        users = cursor.fetchall()
+        cursor.close()
+
+        return jsonify({
+            "success": True,
+            "users": users
+        })
+
+    except Exception as ex:
+        return jsonify({'success': False, 'description': 'Error', 'error': str(ex)}), 500
+
+
+@app.route('/createGroup', methods=['POST'])
+@token_required
+def createGroup():
+    try:
+        if not user_has_role("student", "professor"):
+            return jsonify({
+                "success": False,
+                "description": "Usuario no autorizado",
+            }), 401
+
+        data = request.json
+        nombre = data.get("studyGroupName")
+        leader_ci = request.ci
+
+        if not nombre:
+            return jsonify({
+                "success": False,
+                "description": "El nombre del grupo es obligatorio"
+            }), 400
+
+        conn = connection()
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            INSERT INTO studyGroup (studyGroupName, leader)
+            VALUES (%s, %s)
+        """, (nombre, leader_ci))
+        conn.commit()
+
+        cursor.execute("""
+            SELECT studyGroupId, studyGroupName, leader, status
+            FROM studyGroup
+            WHERE studyGroupName = %s AND leader = %s
+            ORDER BY studyGroupId DESC LIMIT 1
+        """, (nombre, leader_ci))
+
+        row = cursor.fetchone()
+        cursor.close()
+
+        return jsonify({
+            "success": True,
+            "description": "Grupo creado correctamente",
+            "grupo": {
+                "id": row["studyGroupId"],
+                "groupName": row["studyGroupName"],
+                "leader": row["leader"],
+                "status": row["status"]
+            }
+        })
+    except Exception as ex:
+        return jsonify({
+            "success": False,
+            "error": str(ex)
+        }), 500
 
 
 @app.route('/myCareer', methods=['GET'])
