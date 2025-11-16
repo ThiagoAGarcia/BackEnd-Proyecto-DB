@@ -305,19 +305,46 @@ def getUserByCareer(careerID):
 
 # Conseguir todos los usuarios
 @app.route('/users', methods=['GET'])
+@token_required
 def getUsers():
     try:
+        ciUser = request.ci
         conn = connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT name, lastName FROM user")
+        cursor.execute('''
+            SELECT u.ci, u.name, u.lastName 
+            FROM user u
+            JOIN login l ON u.mail = l.mail
+            WHERE u.ci != %s
+        ''', (ciUser,))
         queryResults = cursor.fetchall()
+
+        tables = ['student', 'professor', 'librarian', 'administrator']
         users = []
+
         for row in queryResults:
-            user = {'name': row['name'], 'lastName': row['lastName']}
-            users.append(user)
+            ci = row['ci']
+            roles = []
+
+            for table in tables:
+                cursor.execute(f"SELECT 1 FROM {table} WHERE ci = %s LIMIT 1", (ci,))
+                if cursor.fetchone():
+                    roles.append(table)
+
+            if not roles:
+                roles = ['unknown']
+
+            users.append({
+                'ci': row['ci'],
+                'name': row['name'],
+                'lastName': row['lastName'],
+                'roles': roles
+            })
+
         output = jsonify({'users': users, 'success': True})
         output.headers.add("Access-Control-Allow-Origin", "*")
         return output
+
     except Exception as ex:
         return jsonify({'description': 'Error', 'error': str(ex)})
 
@@ -346,6 +373,61 @@ def getCareers():
 
     except Exception as ex:
         return jsonify({'success': False, 'description': 'Error', 'error': str(ex)}), 500
+
+
+@app.route('/deleteUserByCi/<ci>', methods=['DELETE'])
+@token_required
+def deleteUserByCi(ci):
+    try:
+        if not user_has_role("administrator"):
+            return jsonify({
+                "success": False,
+                "description": "Usuario no autorizado"
+            }), 401
+
+        ci = int(ci)
+
+        conn = connection()
+        cursor = conn.cursor()
+
+    
+        cursor.execute("SELECT mail FROM user WHERE ci = %s", (ci,))
+        user = cursor.fetchone()
+
+        if not user:
+            cursor.close()
+            conn.close()
+            return jsonify({
+                "success": False,
+                "description": f"Usuario con CI {ci} no encontrado"
+            }), 404
+
+        user_mail = user["mail"]
+
+        cursor.execute("DELETE FROM login WHERE mail = %s", (user_mail,))
+        conn.commit()
+
+        cursor.close()
+        conn.close()
+
+        return jsonify({
+            "success": True,
+            "description": f"Usuario {ci} eliminado correctamente"
+        }), 200
+
+    except Exception as ex:
+        try:
+            conn.rollback()
+            cursor.close()
+            conn.close()
+        except:
+            pass
+        
+        return jsonify({
+            "success": False,
+            "description": "Error al intentar eliminar el usuario del login",
+            "error": str(ex)
+        }), 500
 
 
 # Registro de usuario
@@ -469,7 +551,31 @@ def postRegister():
             'error': str(ex)
         }), 500
 
+@app.route('/getUserGroupRequest', methods=['GET'])
+@token_required
+def getUserGroupRequest():
+    try:
+       ci = request.ci
+       conn = connection()
+       cursor = conn.cursor()
 
+       cursor.execute("SELECT studyGroup.studyGroupName, groupRequest.requestDate, studyGroup.studyGroupId FROM groupRequest JOIN studyGroup on studyGroup.studyGroupId = groupRequest.studyGroupId WHERE groupRequest.status = 'Pendiente' AND receiver = %s", (ci,))
+       result = cursor.fetchall()
+
+
+       if not result:
+            return jsonify({
+                'success': True,
+                'grupoRequest': []
+            }), 200
+
+       return jsonify({
+           'success': True,
+           'grupoRequest': result
+       }), 200
+
+    except Exception as ex:
+        return jsonify({'success' : False, 'description': str(ex)}), 404
 # Registro de usuarios por administrador
 @app.route('/registerAdmin', methods=['POST'])
 @token_required 
@@ -643,7 +749,7 @@ def postLogin():
             'ci': ci,
             'role': main_role, 
             'roles': roles,
-            'exp': now + timedelta(minutes=30)
+            'exp': now + timedelta(minutes=120)
         }
 
         access_token = jwt.encode(access_payload, SECRET_KEY, algorithm='HS256')
@@ -1791,28 +1897,49 @@ def acceptUserRequest(groupId):
         ci = request.ci
         groupId = int(groupId)
 
+
         cursor.execute(''' 
             UPDATE groupRequest
             SET status = 'Aceptada'
             WHERE receiver = %s AND studyGroupId = %s;
         ''', (ci, groupId))
 
+    
+        if cursor.rowcount == 0:
+            cursor.close()
+            conn.close()
+            return jsonify({
+                'success': False,
+                'description': 'No se encontró una solicitud pendiente para este grupo.'
+            }), 404
+
+    
         cursor.execute(''' 
-            INSERT INTO studyGroupParticipant VALUES
-            (%s, %s)
+            INSERT INTO studyGroupParticipant (studyGroupId, member)
+            VALUES (%s, %s)
         ''', (groupId, ci))
+
+        conn.commit()
         cursor.close()
+        conn.close()
 
         return jsonify({
             'success': True,
             'description': 'Se ha aceptado la solicitud.'
-        })
+        }), 200
+
     except Exception as ex:
+        try:
+            conn.rollback()
+        except:
+            pass
+
         return jsonify({
             'success': False,
             'description': 'No se pudo procesar la solicitud.',
             'error': str(ex)
         }), 500
+
 
 
 # Rechazar una solicitud

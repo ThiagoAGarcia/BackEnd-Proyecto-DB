@@ -216,8 +216,8 @@ INSERT INTO login VALUES
 ('david.liesegang@ucu.edu.uy', '$2b$16$w9m5XPNPUVKRR1VhJ/WXs.yEUkv3seWC2e0vXCqhz9O2HM/iqB.dm'), -- chocolate1972
 ('rodrigo.diaz@ucu.edu.uy', '$2b$16$nKUf5sdg1McD0/EKWb2PtebGsSKg8O9jK6.vt7VgD04tC6WQg0IcW'), -- soyUnNPC2333
 ('martha.lauria@ucu.edu.uy', '$2b$16$YiUwdugvAyxbHtmq4qRE4ewN/xHJTPnj7WDv9eHnIR57GJzwzaEjO'), -- iAmGoingToKillBill
-('veronica.posadas@ucu.edu.uy', '$2b$16$.zBFmuYIC5g12.dwzTOk.OcqoLPSRtA.L/WGkDSWFSczYa2CxUNva'), -- basesLaMejorMateria11111
-('saul.esquivel@ucu.edu.uy', '$2b$16$ZImd7DslxlQ6iZtjSO5VBOiNOghs5KhpR/mwYtMGvC/Rn8aBB8bNK'); -- elInfiernoSonLosOtros2004
+('veronica.posadas@ucu.edu.uy', '$2b$16$XwajVoE75BbZUDEf0aFsKuWIkDMudlreTmQ2uH1yeq.z5vCbbNbSG'), -- agostina2006
+('saul.esquivel@ucu.edu.uy', '$2b$16$XwajVoE75BbZUDEf0aFsKuWIkDMudlreTmQ2uH1yeq.z5vCbbNbSG'); -- agostina2006
 
 INSERT INTO building VALUES
 ('Central', 'Av. 8 de Octubre 2738', 'Montevideo'),
@@ -329,7 +329,6 @@ INSERT INTO professor VALUES
 (45615815, 'Montevideo'),
 (45673829, 'Montevideo'),
 (32749352, 'Montevideo');
-
 
 INSERT INTO administrator VALUES
 (12345678);
