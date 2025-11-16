@@ -1080,7 +1080,11 @@ def getFreeRooms(building, date):
         cursor = conn.cursor()
         
         cursor.execute(''' 
-            SELECT sR.roomName AS Sala, sR.buildingName AS Edificio, s.startTime AS Inicio, s.endTime AS Fin
+            SELECT 
+                sR.roomName AS Sala, 
+                sR.buildingName AS Edificio, 
+                DATE_FORMAT(s.startTime, '%%H:%%i') AS Inicio,
+                DATE_FORMAT(s.endTime, '%%H:%%i') AS Fin
             FROM studyRoom sR
             JOIN shift s
             WHERE sR.buildingName = %s AND (sR.studyRoomId, s.shiftId) NOT IN (
@@ -1106,7 +1110,8 @@ def getFreeRooms(building, date):
                 "studyRoom": row['Sala'],
                 "building": row['Edificio'],
                 "start": str(row['Inicio']),
-                "end": str(row['Fin'])
+                "end": str(row['Fin']),
+                "date": str(date)
             })
 
         cursor.close()

@@ -385,12 +385,3 @@ INSERT INTO groupRequest VALUES
 INSERT INTO sanction VALUES
 (NULL, 55531973, 32124436, 'Ruidoso', '2025-06-01', '2025-08-01'),
 (NULL, 56902752, 32124436, 'Ocupar', '2025-07-15', '2025-09-15');
-
-
-UPDATE reservation 
-SET 
-    date = CURDATE(),
-    assignedLibrarian = NULL
-WHERE studyGroupId = 7 
-  AND studyRoomId = 7 
-  AND shiftId = 8;
