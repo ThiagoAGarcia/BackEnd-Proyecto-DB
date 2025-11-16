@@ -1055,34 +1055,30 @@ def getUserByNameLastMail(name, lastName, mail):
 
 
 # Conseguir todas las salas libres en cierta fecha y edificio
-@app.route('/freeRooms/<date>', methods=['GET'])
+@app.route('/freeRooms/<building>&<date>', methods=['GET'])
 @token_required
-def getFreeRooms(date):
+def getFreeRooms(building, date):
     try:
-        ci = request.ci
-
+        if not user_has_role("student", "professor"):
+            return jsonify({
+                "success": False,
+                "description": "Usuario no autorizado",
+            }), 401
+        
         conn = connection()
         cursor = conn.cursor()
-
-        cursor.execute(''' 
-            SELECT buildingName
-            FROM librarian
-            WHERE librarian.ci = %s
-        ''', [ci])
-
-        building = cursor.fetchone()
         
         cursor.execute(''' 
             SELECT sR.roomName AS Sala, sR.buildingName AS Edificio, s.startTime AS Inicio, s.endTime AS Fin
             FROM studyRoom sR
             JOIN shift s
-            WHERE sR.buildingName = 'Central' AND (sR.studyRoomId, s.shiftId) NOT IN (
+            WHERE sR.buildingName = %s AND (sR.studyRoomId, s.shiftId) NOT IN (
                 SELECT r.studyRoomId, r.shiftId
                 FROM reservation r
                 WHERE r.date = %s
             )
             ORDER BY Inicio, Fin DESC;
-        ''', (date))
+        ''', (building, date))
         
         results = cursor.fetchall()
 
@@ -1103,7 +1099,6 @@ def getFreeRooms(date):
             })
 
         cursor.close()
-        conn.close()
 
         return jsonify({
             'success': True,
