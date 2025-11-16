@@ -953,6 +953,8 @@ def sendGroupRequest():
                 "description": "Usuario no autorizado",
             }), 401
 
+        # ACÁ VERIFICA QUE ESTEN LOS DATOS OBLIGATORIOS
+
         data = request.get_json()
 
         ci_sender = request.ci
@@ -967,6 +969,8 @@ def sendGroupRequest():
         conn = connection()
         cursor = conn.cursor()
 
+        # ACÁ VERIFICA QUE EL QUE RECIBE LA SOLICITUD NO SEA UN BIBLIOTECARIO O ADMINISTRADOR (Porque no tiene sentido)
+
         cursor.execute("SELECT ci FROM administrator WHERE ci = %s", (receiver,))
         is_admin = cursor.fetchone()
 
@@ -978,6 +982,22 @@ def sendGroupRequest():
                 'success': False,
                 'description': 'No puedes enviar solicitudes a administradores o bibliotecarios'
             }), 400
+
+        # ACÁ VERIFICA QUE UN ESTUDIANTE NO LE ENVIE SOLICITUD A UN PROFESOR
+
+        cursor.execute("SELECT ci from student WHERE ci = %s", (ci_sender,))
+        is_student = cursor.fetchone()
+
+        cursor.execute("SELECT ci FROM professor WHERE ci = %s", (receiver,))
+        is_professor = cursor.fetchone()
+
+        if is_student and is_professor:
+            return jsonify({
+                'success': False,
+                'description': 'Un estudiante no puede enviarle una solicitud a un profesor.'
+            })
+
+        # ACÁ VERIFICA QUE UN MIEMBRO NO INVITE A GENTE RANDOM AL GRUPO DE ESTUDIO
 
         cursor.execute("SELECT leader FROM studyGroup WHERE studyGroupId = %s", (studyGroupId,))
         result = cursor.fetchone()
