@@ -311,8 +311,9 @@ def getUsers():
         ciUser = request.ci
         conn = connection()
         cursor = conn.cursor()
+
         cursor.execute('''
-            SELECT u.ci, u.name, u.lastName 
+            SELECT u.ci, u.name, u.lastName
             FROM user u
             JOIN login l ON u.mail = l.mail
             WHERE u.ci != %s
@@ -325,28 +326,49 @@ def getUsers():
         for row in queryResults:
             ci = row['ci']
             roles = []
+            extra_data = {
+                "careerId": None,
+                "campus": None,
+                "buildingName": None
+            }
 
+            # cada rol
             for table in tables:
-                cursor.execute(f"SELECT 1 FROM {table} WHERE ci = %s LIMIT 1", (ci,))
-                if cursor.fetchone():
+                cursor.execute(f"SELECT * FROM {table} WHERE ci = %s LIMIT 1", (ci,))
+                data = cursor.fetchone()
+                if data:
                     roles.append(table)
 
+                    if table == "student":
+                        extra_data["careerId"] = data["careerId"]
+                        extra_data["campus"] = data["campus"]
+
+                    if table == "professor":
+                        extra_data["campus"] = data["campus"]
+
+                    if table == "librarian":
+                        extra_data["buildingName"] = data["buildingName"]
+
             if not roles:
-                roles = ['unknown']
+                roles = ["unknown"]
 
             users.append({
-                'ci': row['ci'],
-                'name': row['name'],
-                'lastName': row['lastName'],
-                'roles': roles
+                "ci": row["ci"],
+                "name": row["name"],
+                "lastName": row["lastName"],
+                "roles": roles,
+                "careerId": extra_data["careerId"],
+                "campus": extra_data["campus"],
+                "buildingName": extra_data["buildingName"]
             })
 
-        output = jsonify({'users': users, 'success': True})
+        output = jsonify({"users": users, "success": True})
         output.headers.add("Access-Control-Allow-Origin", "*")
         return output
 
     except Exception as ex:
-        return jsonify({'description': 'Error', 'error': str(ex)})
+        return jsonify({"description": "Error", "error": str(ex)})
+
 
 
 # Conseguir todas las carreras
@@ -438,7 +460,9 @@ def postRegister():
 
         ci = data.get('ci')
         name = data.get('name')
+        name = name.replace(' ', '')
         lastname = data.get('lastName')
+        lastname = lastname.replace(' ', '')
         email = data.get('email')
         password = data.get('password')
         careerId = data.get('career')
@@ -478,6 +502,51 @@ def postRegister():
             return jsonify({
                 'success': False,
                 'description': 'La contraseña es muy corta (mínimo 9 caracteres)'
+            }), 400
+        conn = connection()
+        cursor = conn.cursor()
+
+        cursor.execute('SELECT 1 FROM career WHERE careerId = %s', (careerId,))
+        result = cursor.fetchone()
+
+        if not result:
+            cursor.close()
+            conn.close()
+            return jsonify({
+                'success': False,
+                'description': 'No se encontro la carrera'
+            }), 400
+
+        cursor.execute('SELECT 1 FROM campus WHERE campusName = %s', (campus,))
+        result = cursor.fetchone()
+        valido = email.endswith(("@correo.ucu.edu.uy", "@ucu.edu.uy"))
+
+        if not valido:
+            cursor.close()
+            conn.close()
+            return jsonify({
+                'success': False,
+                'description': 'correo invalido'
+            }), 400
+
+        if not result:
+            cursor.close()
+            conn.close()
+            return jsonify({
+                'success': False,
+                'description': 'No se encontro el campus'
+            }), 400
+
+        if len(name) < 3 or not name.isalpha():
+            return jsonify({
+                'success': False,
+                'description': 'Formato de nombre invalido'
+            }), 400
+
+        if len(lastname) < 3 or not lastname.isalpha():
+            return jsonify({
+                'success': False,
+                'description': 'Formato de apellido invalido'
             }), 400
 
         conn = connection()
@@ -723,25 +792,34 @@ def postLogin():
 
         ci = ci_result['ci']
 
-        
         roles = []
-        tables = ['student', 'professor', 'librarian', 'administrator']
-        for table in tables:
-            cursor.execute(f"SELECT ci FROM {table} WHERE ci = %s", (ci,))
-            if cursor.fetchone():
-                roles.append(table)
+
+
+        cursor.execute("SELECT 1 FROM student WHERE ci = %s", (ci,))
+        if cursor.fetchone():
+            roles.append("student")
+
+
+        cursor.execute("SELECT 1 FROM professor WHERE ci = %s", (ci,))
+        if cursor.fetchone():
+            roles.append("professor")
+
+
+        cursor.execute("SELECT 1 FROM librarian WHERE ci = %s", (ci,))
+        if cursor.fetchone():
+            roles.append("librarian")
+
+
+        cursor.execute("SELECT 1 FROM administrator WHERE ci = %s", (ci,))
+        if cursor.fetchone():
+            roles.append("administrator")
 
         if not roles:
-            roles = ['unknown']
-            
+            roles = ["unknown"]
+
+
         prioridad = ['administrator', 'librarian', 'professor', 'student']
-        main_role = None
-        for r in prioridad:
-            if r in roles:
-                main_role = r
-                break
-        if not main_role:
-            main_role = roles[0]
+        main_role = next((r for r in prioridad if r in roles), roles[0])
 
         now = datetime.now(timezone.utc)
         access_payload = {
@@ -2361,6 +2439,155 @@ def getMyCareer():
             "error": str(ex)
         }), 500
 
+@app.route('/updateUser', methods=['PATCH'])
+@token_required
+def patchUpdateDataUser():
+    try:
+        if not user_has_role("administrator"):
+            return jsonify({'success': False, 'Description': 'unauthorized'}), 401
 
+        conn = connection()
+        cursor = conn.cursor()
+
+        data = request.get_json()
+
+        ci = data.get('ci')
+        roles = data.get('roles')
+        name = data.get('name', "").replace(" ", "")
+        lastName = data.get('lastName', "").replace(" ", "")
+        careerId = data.get('careerId')
+        campus = data.get('campus')
+        buildingName = data.get('buildingName')
+
+        if not ci or not roles or not name or not lastName:
+            return jsonify({'success': False, 'description': 'Faltan datos obligatorios'}), 400
+
+        if len(name) < 3 or not name.isalpha():
+            return jsonify({'success': False, 'description': 'Nombre inválido'}), 400
+
+        if len(lastName) < 3 or not lastName.isalpha():
+            return jsonify({'success': False, 'description': 'Apellido inválido'}), 400
+
+        cursor.execute(
+            "UPDATE user SET name = %s, lastName = %s WHERE ci = %s",
+            (name, lastName, ci)
+        )
+        conn.commit()
+
+        current_roles = set()
+
+        tables = {
+            "student": "student",
+            "professor": "professor",
+            "librarian": "librarian",
+            "administrator": "administrator",
+        }
+
+        for role, table in tables.items():
+            cursor.execute(f"SELECT 1 FROM {table} WHERE ci = %s", (ci,))
+            if cursor.fetchone():
+                current_roles.add(role)
+
+        new_roles = set(roles)
+
+        for r in current_roles - new_roles:
+            cursor.execute(f"DELETE FROM {tables[r]} WHERE ci = %s", (ci,))
+            conn.commit()
+
+        for r in new_roles - current_roles:
+            if r == "student":
+                cursor.execute(
+                    "INSERT INTO student (ci, careerId, campus) VALUES (%s, %s, %s)",
+                    (ci, careerId, campus)
+                )
+
+            elif r == "professor":
+                cursor.execute(
+                    "INSERT INTO professor (ci, campus) VALUES (%s, %s)",
+                    (ci, campus)
+                )
+
+            elif r == "librarian":
+                cursor.execute(
+                    "INSERT INTO librarian (ci, buildingName) VALUES (%s, %s)",
+                    (ci, buildingName)
+                )
+
+            elif r == "administrator":
+                cursor.execute(
+                    "INSERT INTO administrator (ci) VALUES (%s)", (ci,)
+                )
+
+            conn.commit()
+
+
+        if "student" in new_roles:
+            cursor.execute(
+                "UPDATE student SET careerId = %s, campus = %s WHERE ci = %s",
+                (careerId, campus, ci)
+            )
+            conn.commit()
+
+        if "professor" in new_roles:
+            cursor.execute(
+                "UPDATE professor SET campus = %s WHERE ci = %s",
+                (campus, ci)
+            )
+            conn.commit()
+
+        if "librarian" in new_roles:
+            cursor.execute(
+                "UPDATE librarian SET buildingName = %s WHERE ci = %s",
+                (buildingName, ci)
+            )
+            conn.commit()
+
+        return jsonify({
+            'success': True,
+            'description': 'Usuario y roles actualizados correctamente.'
+        }), 200
+
+    except Exception as ex:
+        try:
+            conn.rollback()
+        except:
+            pass
+
+        return jsonify({
+            'success': False,
+            'description': 'Error interno.',
+            'error': str(ex)
+        }), 500
+
+@app.route('/buildings', methods=['GET'])
+@token_required
+def getBuildings():
+    try:
+        conn = connection()
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT buildingName, address, campus FROM building")
+        buildings = cursor.fetchall()
+
+        buildings_list = [
+            {
+                "buildingName": b["buildingName"],
+                "address": b["address"],
+                "campus": b["campus"]
+            }
+            for b in buildings
+        ]
+
+        return jsonify({
+            "success": True,
+            "buildings": buildings_list
+        }), 200
+
+    except Exception as ex:
+        return jsonify({
+            "success": False,
+            "description": "Error al obtener los edificios",
+            "error": str(ex)
+        }), 500
 if __name__ == '__main__':
     app.register_error_handler(404, pageNotFound)
