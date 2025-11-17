@@ -886,14 +886,17 @@ def getGroupUser(groupId):
             }), 404
 
         cursor.execute("""
-            SELECT 
+            SELECT
+                sg.studyGroupId,
                 sg.studyGroupName,
                 sg.status,
                 sg.leader,
                 u.name AS leaderName,
+                u.lastName AS leaderLastName,
                 u.mail AS leaderMail,
                 p.member,
                 u2.name AS memberName,
+                u2.lastName AS memberLastName,
                 u2.mail AS memberMail
             FROM studyGroup sg
             JOIN user u ON sg.leader = u.ci
@@ -911,11 +914,13 @@ def getGroupUser(groupId):
             }), 404
 
         group_info = {
+            'id': results[0]['studyGroupId'],
             'studyGroupName': results[0]['studyGroupName'],
             'status': results[0]['status'],
             'leader': {
                 'ci': results[0]['leader'],
                 'name': results[0]['leaderName'],
+                'lastName': results[0]['leaderLastName'],
                 'mail': results[0]['leaderMail']
             },
             'members': []
@@ -926,6 +931,7 @@ def getGroupUser(groupId):
                 group_info['members'].append({
                     'ci': row['member'],
                     'name': row['memberName'],
+                    'lastName': row['memberLastName'],
                     'mail': row['memberMail']
                 })
 
@@ -1711,7 +1717,8 @@ def getAllGroups():
         ci = request.ci
 
         cursor.execute(''' 
-            SELECT 
+            SELECT
+                sg.studyGroupId AS id,
                 sg.studyGroupName AS groupName,
                 sg.status AS groupStatus,
                 leader.name AS leaderName,
@@ -1724,6 +1731,7 @@ def getAllGroups():
             UNION ALL
 
             SELECT 
+                sg.studyGroupId AS id,
                 sg.studyGroupName AS groupName,
                 sg.status AS groupStatus,
                 leader.name AS leaderName,
@@ -1745,6 +1753,7 @@ def getAllGroups():
         groups = []
         for row in results:
             groups.append({
+                'id': row['id'],
                 'groupName': row['groupName'],
                 'groupState': row['groupStatus'],
                 'leaderName': row['leaderName'],
@@ -1852,7 +1861,8 @@ def getGroupInformation(groupId):
                 sg.studyGroupName,
                 sg.status,
                 u_leader.ci AS leaderCi,
-                CONCAT(u_leader.name, ' ', u_leader.lastname) AS leaderName
+                u_leader.name,
+                u_leader.lastName
             FROM studyGroup sg
             JOIN user u_leader ON sg.leader = u_leader.ci
             WHERE sg.studyGroupId = %s
@@ -1862,7 +1872,8 @@ def getGroupInformation(groupId):
         cursor.execute("""
             SELECT 
                 u.ci,
-                CONCAT(u.name, ' ', u.lastname) AS fullName
+                u.name
+                u.lastName
             FROM studyGroupParticipant sgp
             JOIN user u ON sgp.member = u.ci
             WHERE sgp.studyGroupId = %s
