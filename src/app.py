@@ -1899,18 +1899,19 @@ def deleteGroupById(groupId):
             return jsonify({
                 'success': False,
                 'description': 'Solo se puede eliminar un grupo si eres el líder.'
-            })
+            }), 401
         else:
             cursor.execute(''' 
                 DELETE FROM studyGroup
                 WHERE studyGroupId = %s AND status = 'Activo';
             ''', (groupId,))
             cursor.close()
+            conn.commit()
 
             return jsonify({
                 'success': True,
                 'description': 'El grupo se ha eliminado con éxito.'
-            })
+            }), 200
 
     except Exception as ex:
         return jsonify({
@@ -2154,6 +2155,7 @@ def deleteUserById(studyGroupId, userId):
             WHERE studyGroupId = %s AND member = %s
         """, (studyGroupId, userId))
         conn.commit()
+        cursor.close()
 
         return jsonify({
             "success": True,
