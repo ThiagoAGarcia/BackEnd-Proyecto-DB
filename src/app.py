@@ -2271,9 +2271,9 @@ def searchUsersRequest():
                 "success": False,
                 "description": "Usuario no autorizado",
             }), 401
-
         role = request.role
         current_ci = request.ci
+
 
         conn = connection()
         cursor = conn.cursor()
@@ -2322,6 +2322,62 @@ def searchUsersRequest():
     except Exception as ex:
         return jsonify({'success': False, 'description': 'Error', 'error': str(ex)}), 500
 
+@app.route('/switchRole', methods=['POST'])
+@token_required
+def switch_role():
+    try:
+        data = request.get_json()
+        new_role = data.get('role')
+
+        if not new_role:
+            return jsonify({
+                'success': False,
+                'description': 'Rol no especificado'
+            }), 400
+
+        roles = getattr(request, 'roles', [])
+
+        if new_role not in roles:
+            return jsonify({
+                'success': False,
+                'description': 'No tienes ese rol'
+            }), 400
+
+        auth_header = request.headers.get('Authorization', '')
+        token = None
+        if auth_header.startswith('Bearer '):
+            token = auth_header.split(' ')[1]
+
+        email = None
+        if token:
+            payload = jwt.decode(token, SECRET_KEY, algorithms=['HS256'])
+            email = payload.get('email')
+
+        now = datetime.now(timezone.utc)
+        access_payload = {
+            'email': email,
+            'ci': request.ci,
+            'role': new_role,
+            'roles': roles,
+            'exp': now + timedelta(minutes=120)
+        }
+
+        access_token = jwt.encode(access_payload, SECRET_KEY, algorithm='HS256')
+
+        return jsonify({
+            'success': True,
+            'access_token': access_token,
+            'role': new_role,
+            'roles': roles
+        }), 200
+
+    except Exception as ex:
+        print("ERROR EN /switchRole:", ex)
+        return jsonify({
+            'success': False,
+            'description': 'Error al cambiar rol',
+            'error': str(ex)
+        }), 500
 
 @app.route('/createGroup', methods=['POST'])
 @token_required
