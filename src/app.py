@@ -1255,6 +1255,156 @@ def getFreeRooms(building, date):
         }), 500
 
 
+# Devolverá todos los turnos y salas libres dependiendo del turno que se haya elegido o de la sala que se haya elegido
+@app.route('/roomShift/<building>&<date>&<shiftId>&<roomName>', methods=['GET'])
+@token_required
+def roomShift(building, date, shiftId, roomName):
+    try:
+        if not user_has_role("student", "professor"):
+            return jsonify({
+                "success": False,
+                "description": "Usuario no autorizado",
+            }), 401
+
+        conn = connection()
+        cursor = conn.cursor()
+
+        shiftId = None if shiftId == "null" or shiftId == "0" else shiftId
+        roomName = None if roomName == "null" or roomName == "0" else roomName
+
+        # ACÁ VA A DEVOLVER TODAS LAS SALAS Y TURNOS SI NO HAY NADA SELECCIONADO DE LOS TURNOS Y SALAS
+        if not shiftId and not roomName:
+            cursor.execute('''
+                SELECT sR.roomName AS Sala, sR.capacity AS Capacidad
+                FROM studyRoom sR
+                WHERE sR.buildingName = %s AND EXISTS (
+                    SELECT *
+                    FROM shift sh
+                    WHERE sh.shiftId NOT IN (
+                        SELECT r.shiftId
+                        FROM reservation r
+                        WHERE r.date = %s AND r.studyRoomId = sR.studyRoomId
+                    )
+                )
+                ORDER BY Sala
+            ''', (building, date))
+
+            salas_libres = cursor.fetchall()
+
+            cursor.execute('''
+                SELECT s.shiftId, DATE_FORMAT(s.startTime, '%%H:%%i') AS Inicio, DATE_FORMAT(s.endTime, '%%H:%%i') AS Fin
+                FROM shift s
+                WHERE EXISTS (
+                    SELECT *
+                    FROM studyRoom sr
+                    WHERE sr.buildingName = %s AND sr.studyRoomId NOT IN (
+                        SELECT r.studyRoomId
+                        FROM reservation r
+                        WHERE r.date = %s AND r.shiftId = s.shiftId
+                    )
+                )
+                ORDER BY Inicio
+            ''', (building, date))
+
+            turnos_libres = cursor.fetchall()
+
+            cursor.close()
+
+            return jsonify({
+                "success": True,
+                "description": "Salas y turnos libres",
+                "salas": [{
+                    "roomName": r["Sala"],
+                    "capacity": r["Capacidad"]
+                } for r in salas_libres],
+                "turnos": [{
+                    "shiftId": s["shiftId"],
+                    "start": s["Inicio"],
+                    "end": s["Fin"]
+                } for s in turnos_libres]
+            }), 200
+
+        # ACÁ VA A DEVOLVER TODAS LAS SALAS LIBRES PARA UN TURNO
+        if shiftId and not roomName:
+            cursor.execute('''
+                SELECT sR.roomName AS Sala, sR.capacity AS Capacidad
+                FROM studyRoom sR
+                WHERE sR.buildingName = %s AND sR.studyRoomId NOT IN (
+                    SELECT r.studyRoomId
+                    FROM reservation r
+                    WHERE r.date = %s AND r.shiftId = %s
+                )
+                ORDER BY Sala
+            ''', (building, date, shiftId))
+
+            salas = cursor.fetchall()
+
+            cursor.close()
+
+            return jsonify({
+                "success": True,
+                "salas": [{
+                    "roomName": r["Sala"],
+                    "capacity": r["Capacidad"]
+                } for r in salas],
+            }), 200
+
+        # ACÁ VA A DEVOLVER TODOS LOS TURNOS LIBRES PARA UNA SALA
+
+        if roomName and not shiftId:
+            cursor.execute('''
+                SELECT s.shiftId, DATE_FORMAT(s.startTime, '%%H:%%i') AS Inicio, DATE_FORMAT(s.endTime, '%%H:%%i') AS Fin
+                FROM shift s
+                WHERE s.shiftId NOT IN (
+                    SELECT r.shiftId
+                    FROM reservation r
+                    JOIN studyRoom sr ON sr.studyRoomId = r.studyRoomId
+                    WHERE r.date = %s AND sr.roomName = %s
+                )
+                ORDER BY Inicio
+            ''', (date, roomName))
+
+            turnos = cursor.fetchall()
+
+            cursor.close()
+
+            return jsonify({
+                "success": True,
+                "turnos": [{
+                    "shiftId": r["shiftId"],
+                    "start": r["Inicio"],
+                    "end": r["Fin"]
+                } for r in turnos]
+            }), 200
+
+        # ACÁ VA A DEVOLVER LA INTERSECCION DE AMBOS
+
+        if shiftId and roomName:
+            cursor.execute('''
+                SELECT COUNT(*) AS ocupado
+                FROM reservation r
+                JOIN studyRoom sR ON sR.studyRoomId = r.studyRoomId
+                WHERE sR.roomName = %s AND r.date = %s AND r.shiftId = %s
+            ''', (roomName, date, shiftId))
+
+            ocupado = cursor.fetchone()["ocupado"] > 0
+
+            cursor.close()
+
+            return jsonify({
+                "success": True,
+                "sala": roomName,
+                "turno": shiftId,
+                "disponible": not ocupado
+            }), 200
+
+    except Exception as ex:
+        return jsonify({
+            'success': False,
+            'description': 'No se pudo procesar la solicitud.',
+            'error': str(ex)
+        }), 500
+
 # Conseguir todas las reservas de un usuario con mail
 @app.route('/user/<mail>/reservations', methods=['GET'])
 @token_required
