@@ -1,6 +1,12 @@
 # Imagen base de Python
 FROM python:3.12-slim
 
+# Configurar UTF-8 en el contenedor
+ENV LANG=C.UTF-8 \
+    LC_ALL=C.UTF-8 \
+    PYTHONIOENCODING=utf-8 \
+    PYTHONUNBUFFERED=1
+
 # Establecer directorio de trabajo
 WORKDIR /app
 
@@ -23,5 +29,5 @@ COPY . .
 # Exponer el puerto de Flask
 EXPOSE 5000
 
-# Comando de inicio
+# Comando de inicio por defecto
 CMD ["gunicorn", "--bind", "0.0.0.0:5000", "app:app"]

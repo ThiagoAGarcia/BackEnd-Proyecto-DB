@@ -1,7 +1,10 @@
 DROP DATABASE IF EXISTS ObligatorioBDD;
 CREATE DATABASE ObligatorioBDD CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE ObligatorioBDD;
-
+SET NAMES utf8mb4;
+SET character_set_client = utf8mb4;
+SET character_set_connection = utf8mb4;
+SET character_set_results = utf8mb4;
 CREATE TABLE campus (
     campusName VARCHAR(32) PRIMARY KEY CHECK ( CHAR_LENGTH(campusName) >= 5 )
 );

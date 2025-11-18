@@ -14,8 +14,10 @@ def connection(retries=10, delay=3):
                 database=db_config.MYSQL_DB,
                 charset='utf8mb4',
                 cursorclass=pymysql.cursors.DictCursor
+
             )
             print("✅ Conectado a MySQL")
+
             return connection
         except pymysql.err.OperationalError as e:
             print(f"⏳ MySQL no está listo, reintentando... ({attempt+1}/{retries})")

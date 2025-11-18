@@ -15,6 +15,11 @@ services:
     volumes:
       - ./mysql_data:/var/lib/mysql
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    command:
+      [
+        '--character-set-server=utf8mb4',
+        '--collation-server=utf8mb4_unicode_ci',
+      ]
     healthcheck:
       test: ['CMD', 'mysqladmin', 'ping', '-h', 'localhost', '-uroot', '-proot']
       interval: 5s
@@ -37,7 +42,10 @@ services:
       MYSQL_DB: ObligatorioBDD
       FLASK_ENV: development
       FLASK_APP: app.py
-
+      # Locale y encoding en el contenedor
+      LANG: C.UTF-8
+      LC_ALL: C.UTF-8
+      PYTHONIOENCODING: utf-8
     volumes:
       - .:/app
     working_dir: /app

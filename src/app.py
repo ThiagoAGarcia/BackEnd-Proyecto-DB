@@ -16,6 +16,7 @@ app.config['JSON_AS_ASCII'] = False
 app.config['JSONIFY_PRETTYPRINT_REGULAR'] = True
 app.config['JSONIFY_MIMETYPE'] = "application/json; charset=utf-8"
 
+
 @app.after_request
 def set_charset(response):
     response.headers["Content-Type"] = "application/json; charset=utf-8"
@@ -465,16 +466,21 @@ def postRegister():
         lastname = lastname.replace(' ', '')
         email = data.get('email')
         password = data.get('password')
+        confirmPassword = data.get('confirmPassword')
         careerId = data.get('career')
         second_career = data.get('secondCareer')
         campus = data.get('campus')
 
-        if not all([ci, name, lastname, email, password, careerId, campus]):
+        if not all([ci, name, lastname, email, password, confirmPassword, careerId, campus]):
             return jsonify({
                 'success': False,
                 'description': 'Faltan datos obligatorios'
             }), 400
-
+        if password != confirmPassword:
+            return jsonify({
+                'success': False,
+                'description': 'Las contraseñas deben coincidir'
+            }), 400
         if len(ci) != 8:
             return jsonify({
                 'success': False,
@@ -1054,32 +1060,41 @@ def sendGroupRequest():
         cursor = conn.cursor()
 
         # ACÁ VERIFICA QUE EL QUE RECIBE LA SOLICITUD NO SEA UN BIBLIOTECARIO O ADMINISTRADOR (Porque no tiene sentido)
-
-        cursor.execute("SELECT ci FROM administrator WHERE ci = %s", (receiver,))
-        is_admin = cursor.fetchone()
-
-        cursor.execute("SELECT ci FROM librarian WHERE ci = %s", (receiver,))
-        is_librarian = cursor.fetchone()
-
-        if is_admin or is_librarian:
-            return jsonify({
-                'success': False,
-                'description': 'No puedes enviar solicitudes a administradores o bibliotecarios'
-            }), 400
-
-        # ACÁ VERIFICA QUE UN ESTUDIANTE NO LE ENVIE SOLICITUD A UN PROFESOR
-
-        cursor.execute("SELECT ci from student WHERE ci = %s", (ci_sender,))
+        # SI EL USUARIO TIENE EL ROL ADMIN AUNQUE TAMBIEN SEA USUARIO SE ROMPE, DEBEMOS CHEQUEAR QUE EL USUARIO SEA USER O PROFESOR
+        cursor.execute("SELECT ci FROM student WHERE ci = %s", (receiver,))
         is_student = cursor.fetchone()
 
         cursor.execute("SELECT ci FROM professor WHERE ci = %s", (receiver,))
         is_professor = cursor.fetchone()
 
-        if is_student and is_professor:
+        if not is_student and not is_professor:
+          return jsonify({
+               'success': False,
+               'description': 'No puedes enviar solicitudes a administradores o bibliotecarios'
+           }), 400
+
+        # ACÁ VERIFICA QUE UN ESTUDIANTE NO LE ENVIE SOLICITUD A UN PROFESOR
+
+        # Ver quién envía
+        cursor.execute("SELECT ci FROM student WHERE ci = %s", (ci_sender,))
+        sender_is_student = cursor.fetchone() is not None
+
+        # Ver roles del receptor
+        cursor.execute("SELECT ci FROM student WHERE ci = %s", (receiver,))
+        receiver_is_student = cursor.fetchone() is not None
+
+        cursor.execute("SELECT ci FROM professor WHERE ci = %s", (receiver,))
+        receiver_is_professor = cursor.fetchone() is not None
+
+        # Bloquear solo si:
+        # - el que envía es estudiante
+        # - el receptor es profesor
+        # - y NO es estudiante (o sea, solo profesor)
+        if sender_is_student and receiver_is_professor and not receiver_is_student:
             return jsonify({
                 'success': False,
-                'description': 'Un estudiante no puede enviarle una solicitud a un profesor.'
-            })
+                'description': 'Un estudiante no puede enviarle una solicitud a un profesor "solo profesor".'
+            }), 400
 
         # ACÁ VERIFICA QUE UN MIEMBRO NO INVITE A GENTE RANDOM AL GRUPO DE ESTUDIO
 
@@ -2085,6 +2100,7 @@ def denyGroupRequest(groupId):
             SET status = 'Rechazada'
             WHERE receiver = %s AND studyGroupId = %s;
         ''', (ci, groupId))
+        conn.commit()
         cursor.close()
 
         return jsonify({
@@ -2273,9 +2289,9 @@ def searchUsersRequest():
                 "success": False,
                 "description": "Usuario no autorizado",
             }), 401
-
         role = request.role
         current_ci = request.ci
+
 
         conn = connection()
         cursor = conn.cursor()
@@ -2324,6 +2340,62 @@ def searchUsersRequest():
     except Exception as ex:
         return jsonify({'success': False, 'description': 'Error', 'error': str(ex)}), 500
 
+@app.route('/switchRole', methods=['POST'])
+@token_required
+def switch_role():
+    try:
+        data = request.get_json()
+        new_role = data.get('role')
+
+        if not new_role:
+            return jsonify({
+                'success': False,
+                'description': 'Rol no especificado'
+            }), 400
+
+        roles = getattr(request, 'roles', [])
+
+        if new_role not in roles:
+            return jsonify({
+                'success': False,
+                'description': 'No tienes ese rol'
+            }), 400
+
+        auth_header = request.headers.get('Authorization', '')
+        token = None
+        if auth_header.startswith('Bearer '):
+            token = auth_header.split(' ')[1]
+
+        email = None
+        if token:
+            payload = jwt.decode(token, SECRET_KEY, algorithms=['HS256'])
+            email = payload.get('email')
+
+        now = datetime.now(timezone.utc)
+        access_payload = {
+            'email': email,
+            'ci': request.ci,
+            'role': new_role,
+            'roles': roles,
+            'exp': now + timedelta(minutes=120)
+        }
+
+        access_token = jwt.encode(access_payload, SECRET_KEY, algorithm='HS256')
+
+        return jsonify({
+            'success': True,
+            'access_token': access_token,
+            'role': new_role,
+            'roles': roles
+        }), 200
+
+    except Exception as ex:
+        print("ERROR EN /switchRole:", ex)
+        return jsonify({
+            'success': False,
+            'description': 'Error al cambiar rol',
+            'error': str(ex)
+        }), 500
 
 @app.route('/createGroup', methods=['POST'])
 @token_required
