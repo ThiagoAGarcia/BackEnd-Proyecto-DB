@@ -80,6 +80,8 @@ def pageNotFound(error):
     return "<h1>La página que buscas no existe.</h1>"
 
 
+
+
 # Conseguir todas las sanciones de un usuario por mail
 @app.route('/user/<mail>/sanctions', methods=['GET'])
 @token_required
@@ -2883,5 +2885,305 @@ def getBuildings():
             "description": "Error al obtener los edificios",
             "error": str(ex)
         }), 500
+    
+    
+# ESTADISTICAS
+
+@app.route('/room/getSalasMasReservadas', methods=['GET'])
+@token_required
+def getSalasMasReservadas():
+    try:
+        if not user_has_role("administrator"):
+            return jsonify({
+                "success": False,
+                "description": "Usuario no autorizado",
+            }), 401
+        conn = connection()
+        cursor = conn.cursor()
+
+
+        cursor.execute("""SELECT COUNT(r.studyRoomId) AS CantidadDeReservasPor, sR.roomName AS Sala, sR.buildingName AS Edificio
+        FROM reservation r
+        JOIN studyRoom sR on r.studyRoomId = sR.studyRoomId
+        GROUP BY r.studyRoomId
+        ORDER BY CantidadDeReservasPor DESC""")
+
+        resultado = cursor.fetchall()
+        cursor.close()
+        conn.close()
+        return jsonify({
+            'success': True,
+            'salasMasReservadas': resultado,
+        })
+
+    except Exception as ex:
+        return jsonify({'description': 'Error', 'error': str(ex)}), 500
+
+@app.route('/shifts/mostDemanded', methods=['GET'])
+@token_required
+def getTurnosMasDemandados():
+    try:
+        if not user_has_role("administrator"):
+            return jsonify({
+                "success": False,
+                "description": "Usuario no autorizado",
+            }), 401
+
+        conn = connection()
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT 
+                COUNT(*) AS cantidad_reservas,
+                DATE_FORMAT(s.startTime, '%H:%i:%s') AS startTime,
+                DATE_FORMAT(s.endTime, '%H:%i:%s') AS endTime
+            FROM reservation r
+            JOIN shift s ON r.shiftId = s.shiftId
+            GROUP BY s.startTime, s.endTime
+            ORDER BY cantidad_reservas DESC;
+        """)
+
+        resultado = cursor.fetchall()
+        cursor.close()
+        conn.close()
+
+
+        turnos = []
+        id = 0
+
+        for row in resultado:
+            turnos.append({
+                "id": id,
+                "reservas": row["cantidad_reservas"],
+                "start": str(row["startTime"]),
+                "end":  str(row["endTime"]),
+            })
+            id += 1
+
+        return jsonify({
+            'success': True,
+            'shiftMostDemanded': turnos,
+        }), 200
+
+    except Exception as ex:
+        print("ERROR en /shifts/mostDemanded:", ex)
+        return jsonify({'description': 'Error', 'error': str(ex)}), 500
+
+@app.route('/promedioParticipantesPorSalas', methods=['GET'])
+@token_required
+def getPromedioParticipantesPorSala():
+    try:
+        if not user_has_role("administrator"):
+            return jsonify({
+                "success": False,
+                "description": "Usuario no autorizado",
+            }), 401
+
+        conn = connection()
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT name, AVG(cantidad) AS promedio_participantes
+            FROM (
+                SELECT studyroom.studyRoomId, roomName as name, COUNT(studyGroupParticipant.member) AS cantidad
+                FROM reservation
+                JOIN studyroom ON reservation.studyRoomId = studyroom.studyRoomId
+                JOIN obligatoriobdd.studygroup ON reservation.studyGroupId = studygroup.studyGroupId
+                JOIN studygroupparticipant ON studygroup.studyGroupId = studygroupparticipant.studyGroupId
+                GROUP BY studyroom.studyRoomId, reservation.studyGroupId
+            ) AS sub
+            GROUP BY name;
+        """)
+
+        resultado = cursor.fetchall()
+        cursor.close()
+        conn.close()
+
+        return jsonify({
+            'success': True,
+            'promedioPorSalas': resultado,
+        }), 200
+
+    except Exception as ex:
+        print("ERROR en /promedioParticipantesPorSalas:", ex)
+        return jsonify({'description': 'Error', 'error': str(ex)}), 500
+
+
+@app.route('/reservasPorCarreraYFacultad', methods=['GET'])
+@token_required
+def getReservasPorCarreraYFacultad():
+    try:
+        if not user_has_role("administrator"):
+            return jsonify({
+                "success": False,
+                "description": "Usuario no autorizado",
+            }), 401
+
+        conn = connection()
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT COUNT(*) AS CantidadReservasPor, c.careerName AS Carrera, f.facultyName AS Facultad
+            FROM reservation r
+            JOIN studyGroup sG ON r.studyGroupId = sG.studyGroupId
+            JOIN student s ON sG.leader = s.ci
+            JOIN career c ON s.careerId = c.careerId
+            JOIN faculty f on c.facultyId = f.facultyId
+            GROUP BY Carrera, Facultad;
+
+        """)
+
+        resultado = cursor.fetchall()
+        cursor.close()
+        conn.close()
+
+        return jsonify({
+            'success': True,
+            'reservasPorCarreraYFacultad': resultado,
+        }), 200
+
+    except Exception as ex:
+        print("ERROR en /reservasPorCarreraYFacultad:", ex)
+        return jsonify({'description': 'Error', 'error': str(ex)}), 500
+
+@app.route('/porcentajeOcupacionPorEdificio', methods=['GET'])
+@token_required
+def getPorcentajeOcupacionPorEdificio():
+    try:
+        if not user_has_role("administrator"):
+            return jsonify({
+                "success": False,
+                "description": "Usuario no autorizado",
+            }), 401
+
+        conn = connection()
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT building.buildingName, (
+            COUNT(DISTINCT studyroom.studyRoomId) * 100.0 / (
+                    SELECT COUNT(*)
+                    FROM studyRoom
+                    WHERE studyroom.buildingName = building.buildingName
+                )
+            ) AS porcentaje_ocupacion
+        FROM building
+        JOIN studyRoom ON building.buildingName = studyroom.buildingName
+        JOIN reservation ON studyroom.studyRoomId = reservation.studyRoomId
+        WHERE reservation.state IN ('Activa', 'Finalizada', 'Sin asistencia')
+        GROUP BY building.buildingName;
+        """)
+
+        resultado = cursor.fetchall()
+        cursor.close()
+        conn.close()
+
+        return jsonify({
+            'success': True,
+            'porcentajeDeOcupacion': resultado,
+        }), 200
+
+    except Exception as ex:
+        print("ERROR en /porcentajeOcupacionPorEdificio:", ex)
+        return jsonify({'description': 'Error', 'error': str(ex)}), 500
+
+@app.route('/cantidadReservasAlumnosYProfesores', methods=['GET'])
+@token_required
+def getCantidadReservasAlumnosYProfesores():
+    try:
+        if not user_has_role("administrator"):
+            return jsonify({
+                "success": False,
+                "description": "Usuario no autorizado",
+            }), 401
+
+        conn = connection()
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT COUNT(*) AS CantidadReservas
+            FROM reservation r
+            WHERE r.state = 'Finalizada' OR r.state = 'Activa';
+        """)
+
+        resultado = cursor.fetchall()
+        cursor.close()
+        conn.close()
+
+        return jsonify({
+            'success': True,
+            'cantidadReservas': resultado,
+        }), 200
+    except Exception as ex:
+        print("ERROR en /cantidadReservasAlumnosYProfesores:", ex)
+        return jsonify({'description': 'Error', 'error': str(ex)}), 500
+
+@app.route('/sancionesProfesoresYAlumnos', methods=['GET'])
+@token_required
+def getSancionesProfesoresYAlumnos():
+    try:
+        if not user_has_role("administrator"):
+            return jsonify({
+                "success": False,
+                "description": "Usuario no autorizado",
+            }), 401
+
+        conn = connection()
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT u.ci, u.name, u.lastName, COUNT(*) AS sanciones
+            FROM sanction sa
+            JOIN user u ON sa.ci = u.ci
+            LEFT JOIN student s ON u.ci = s.ci
+            LEFT JOIN professor p ON u.ci = p.ci
+            WHERE s.ci IS NOT NULL OR p.ci IS NOT NULL
+            GROUP BY u.ci
+            ORDER BY sanciones DESC;
+        """)
+
+        resultado = cursor.fetchall()
+        cursor.close()
+        conn.close()
+
+        return jsonify({
+            'success': True,
+            'sanciones': resultado,
+        }), 200
+    except Exception as ex:
+        print("ERROR en /getSancionesProfesoresYAlumnos:", ex)
+        return jsonify({'description': 'Error', 'error': str(ex)}), 500
+
+@app.route('/porcentajeReservasEfectivasYNoEfectivas', methods=['GET'])
+@token_required
+def getPorcentajeReservasEfectivasYNoEfectivas():
+    try:
+        if not user_has_role("administrator"):
+            return jsonify({
+                "success": False,
+                "description": "Usuario no autorizado",
+            }), 401
+
+        conn = connection()
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT
+                SUM(CASE WHEN state = 'Finalizada' THEN 1 ELSE 0 END)/COUNT(*) * 100 AS Finalizada,
+                SUM(CASE WHEN state = 'Cancelada' THEN 1 ELSE 0 END)/COUNT(*) * 100 AS Cancelada
+            FROM reservation;
+        """)
+
+        resultado = cursor.fetchall()
+        cursor.close()
+        conn.close()
+
+        return jsonify({
+            'success': True,
+            'reservas': resultado,
+        }), 200
+    except Exception as ex:
+        print("ERROR en /porcentajeReservasEfectivasYNoEfectivas:", ex)
+        return jsonify({'description': 'Error', 'error': str(ex)}), 500
 if __name__ == '__main__':
     app.register_error_handler(404, pageNotFound)
