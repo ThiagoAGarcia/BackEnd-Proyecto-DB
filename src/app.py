@@ -1915,19 +1915,50 @@ def deleteGroupById(groupId):
                 'success': False,
                 'description': 'Solo se puede eliminar un grupo si eres el líder.'
             }), 401
-        else:
+        
+        cursor.execute(''' 
+            SELECT studyGroupId
+            FROM studyGroup sG
+            WHERE sG.studyGroupId = %s AND status = 'Activo';
+        ''', (groupId))
+
+        res = cursor.fetchone()
+        if res is not None:
+            cursor.execute(''' 
+                DELETE FROM groupRequest
+                WHERE studyGroupId = %s
+            ''', (groupId))
+            conn.commit()
+
+            cursor.execute(''' 
+                SELECT r.studyGroupId
+                FROM reservation r
+                WHERE r.studyGroupId = %s;
+            ''', (groupId))
+            reservation = cursor.fetchone()
+            if reservation is not None:
+                cursor.execute(''' 
+                    DELETE FROM reservation
+                    WHERE studyGroupId = %s
+                ''', (groupId))
+                conn.commit()
+
             cursor.execute(''' 
                 DELETE FROM studyGroup
                 WHERE studyGroupId = %s AND status = 'Activo';
-            ''', (groupId,))
-            cursor.close()
+            ''', (groupId))
             conn.commit()
+            cursor.close()
 
             return jsonify({
                 'success': True,
                 'description': 'El grupo se ha eliminado con éxito.'
             }), 200
-
+        else:
+            return jsonify({
+                'success': False,
+                'description': 'No se puede eliminar un grupo inactivo'
+            }), 401
     except Exception as ex:
         return jsonify({
             'success': False,
