@@ -860,18 +860,24 @@ def postLogin():
 
 # Hacer una nueva reserva
 @app.route('/newReservation', methods=['POST'])
-#@token_required
+@token_required
 def newReservation():
     try:
+        if not user_has_role("student", "professor"):
+            return jsonify({
+                "success": False,
+                "description": "Usuario no autorizado",
+            }), 401
+
         data = request.get_json()
-        studyGroupID = data.get('StudyGroupID')
+        studyGroupId = data.get('studyGroupId')
         studyRoomId = data.get('studyRoomId')
         date = data.get('date')
         shiftId = data.get('shiftId')
         reservationCreateDate = datetime.now()
         state = 'Activa'
 
-        if not all([studyGroupID, studyRoomId, date, shiftId]):
+        if not all([studyGroupId, studyRoomId, date, shiftId]):
             return jsonify({
                 'success': False,
                 'description': 'Faltan datos obligatorios'
@@ -887,13 +893,13 @@ def newReservation():
                 'description': 'No se puede reservar para una fecha que ya pasó'
             }), 400
 
-        cursor.execute("SELECT studyGroupId FROM studyGroup WHERE studyGroupId = %s", (studyGroupID,))
+        cursor.execute("SELECT studyGroupId FROM studyGroup WHERE studyGroupId = %s", (studyGroupId,))
         result = cursor.fetchone()
         if not result:
             cursor.close()
             return jsonify({
                 'success': False,
-                'description': f'No se encontró el grupo \"{studyGroupID}\"'
+                'description': f'No se encontró el grupo \"{studyGroupId}\"'
             }), 404
 
         cursor.execute("SELECT studyRoomId FROM studyRoom WHERE studyRoomId = %s", (studyRoomId,))
@@ -918,7 +924,7 @@ def newReservation():
             INSERT INTO reservation 
                 (studyGroupId, studyRoomId, date, shiftId, assignedLibrarian, reservationCreateDate, state)
             VALUES (%s, %s, %s, %s, null, %s, %s)
-        """, (studyGroupID, studyRoomId, date, shiftId, reservationCreateDate.date(), state))
+        """, (studyGroupId, studyRoomId, date, shiftId, reservationCreateDate.date(), state))
 
         conn.commit()
         cursor.close()
@@ -1256,9 +1262,9 @@ def getFreeRooms(building, date):
 
 
 # Devolverá todos los turnos y salas libres dependiendo del turno que se haya elegido o de la sala que se haya elegido
-@app.route('/roomShift/<building>&<date>&<shiftId>&<roomName>', methods=['GET'])
+@app.route('/roomShift/<building>&<date>&<shiftId>&<roomId>', methods=['GET'])
 @token_required
-def roomShift(building, date, shiftId, roomName):
+def roomShift(building, date, shiftId, roomId):
     try:
         if not user_has_role("student", "professor"):
             return jsonify({
@@ -1269,13 +1275,22 @@ def roomShift(building, date, shiftId, roomName):
         conn = connection()
         cursor = conn.cursor()
 
+        selected_date = datetime.strptime(date, "%Y-%m-%d").date()
+        today = (datetime.now(timezone.utc) + timedelta(days=1)).date()
+
+        if selected_date < today:
+            return jsonify({
+                'success': False,
+                'description': 'No se puede elegir una fecha anterior a mañana'
+            }), 400
+
         shiftId = None if shiftId == "null" or shiftId == "0" else shiftId
-        roomName = None if roomName == "null" or roomName == "0" else roomName
+        roomId = None if roomId == "null" or roomId == "0" else roomId
 
         # ACÁ VA A DEVOLVER TODAS LAS SALAS Y TURNOS SI NO HAY NADA SELECCIONADO DE LOS TURNOS Y SALAS
-        if not shiftId and not roomName:
+        if not shiftId and not roomId:
             cursor.execute('''
-                SELECT sR.roomName AS Sala, sR.capacity AS Capacidad
+                SELECT sR.roomName AS Sala, sR.capacity AS Capacidad, sR.studyRoomId AS SalaId
                 FROM studyRoom sR
                 WHERE sR.buildingName = %s AND EXISTS (
                     SELECT *
@@ -1314,6 +1329,7 @@ def roomShift(building, date, shiftId, roomName):
                 "success": True,
                 "description": "Salas y turnos libres",
                 "salas": [{
+                    "roomId": r["SalaId"],
                     "roomName": r["Sala"],
                     "capacity": r["Capacidad"]
                 } for r in salas_libres],
@@ -1325,9 +1341,9 @@ def roomShift(building, date, shiftId, roomName):
             }), 200
 
         # ACÁ VA A DEVOLVER TODAS LAS SALAS LIBRES PARA UN TURNO
-        if shiftId and not roomName:
+        if shiftId and not roomId:
             cursor.execute('''
-                SELECT sR.roomName AS Sala, sR.capacity AS Capacidad
+                SELECT sR.roomName AS Sala, sR.capacity AS Capacidad, sR.studyRoomId AS SalaId
                 FROM studyRoom sR
                 WHERE sR.buildingName = %s AND sR.studyRoomId NOT IN (
                     SELECT r.studyRoomId
@@ -1344,6 +1360,7 @@ def roomShift(building, date, shiftId, roomName):
             return jsonify({
                 "success": True,
                 "salas": [{
+                    "roomId": r["SalaId"],
                     "roomName": r["Sala"],
                     "capacity": r["Capacidad"]
                 } for r in salas],
@@ -1351,7 +1368,7 @@ def roomShift(building, date, shiftId, roomName):
 
         # ACÁ VA A DEVOLVER TODOS LOS TURNOS LIBRES PARA UNA SALA
 
-        if roomName and not shiftId:
+        if roomId and not shiftId:
             cursor.execute('''
                 SELECT s.shiftId, DATE_FORMAT(s.startTime, '%%H:%%i') AS Inicio, DATE_FORMAT(s.endTime, '%%H:%%i') AS Fin
                 FROM shift s
@@ -1359,10 +1376,10 @@ def roomShift(building, date, shiftId, roomName):
                     SELECT r.shiftId
                     FROM reservation r
                     JOIN studyRoom sr ON sr.studyRoomId = r.studyRoomId
-                    WHERE r.date = %s AND sr.roomName = %s
+                    WHERE r.date = %s AND sr.studyRoomId = %s
                 )
                 ORDER BY Inicio
-            ''', (date, roomName))
+            ''', (date, roomId))
 
             turnos = cursor.fetchall()
 
@@ -1379,23 +1396,45 @@ def roomShift(building, date, shiftId, roomName):
 
         # ACÁ VA A DEVOLVER LA INTERSECCION DE AMBOS
 
-        if shiftId and roomName:
+        if shiftId and roomId:
             cursor.execute('''
-                SELECT COUNT(*) AS ocupado
-                FROM reservation r
-                JOIN studyRoom sR ON sR.studyRoomId = r.studyRoomId
-                WHERE sR.roomName = %s AND r.date = %s AND r.shiftId = %s
-            ''', (roomName, date, shiftId))
+                SELECT sR.roomName AS Sala, sR.capacity AS Capacidad, sR.studyRoomId AS SalaId
+                FROM studyRoom sR
+                WHERE sR.buildingName = %s AND sR.studyRoomId = %s AND sR.studyRoomId NOT IN (
+                    SELECT r.studyRoomId
+                    FROM reservation r
+                    WHERE r.date = %s AND r.shiftId = %s
+                )
+            ''', (building, roomId, date, shiftId))
 
-            ocupado = cursor.fetchone()["ocupado"] > 0
+            sala = cursor.fetchone()
+
+            turno = None
+            if sala:
+                cursor.execute('''
+                    SELECT s.shiftId, DATE_FORMAT(s.startTime, '%%H:%%i') AS Inicio, DATE_FORMAT(s.endTime, '%%H:%%i') AS Fin
+                    FROM shift s
+                    WHERE s.shiftId = %s
+                ''', (shiftId,))
+                turno = cursor.fetchone()
 
             cursor.close()
 
             return jsonify({
                 "success": True,
-                "sala": roomName,
-                "turno": shiftId,
-                "disponible": not ocupado
+                "description": "Salas y turnos libres",
+
+                "salas": [{
+                    "roomId": sala["SalaId"],
+                    "roomName": sala["Sala"],
+                    "capacity": sala["Capacidad"]
+                }] if sala else [],
+
+                "turnos": [{
+                    "shiftId": turno["shiftId"],
+                    "start": turno["Inicio"],
+                    "end": turno["Fin"]
+                }] if turno else []
             }), 200
 
     except Exception as ex:
