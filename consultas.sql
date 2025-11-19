@@ -14,16 +14,16 @@ GROUP BY s.startTime, s.endTime
 ORDER BY cantidad_reservas DESC;
 
 -- Promedio de participantes por sala --
-SELECT studyRoomId, AVG(cantidad) AS promedio_participantes
+SELECT name, AVG(cantidad) AS promedio_participantes
 FROM (
-    SELECT studyroom.studyRoomId, COUNT(studyGroupParticipant.member) AS cantidad
+    SELECT studyroom.studyRoomId, roomName as name, COUNT(studyGroupParticipant.member) AS cantidad
     FROM reservation
     JOIN studyroom ON reservation.studyRoomId = studyroom.studyRoomId
     JOIN obligatoriobdd.studygroup ON reservation.studyGroupId = studygroup.studyGroupId
     JOIN studygroupparticipant ON studygroup.studyGroupId = studygroupparticipant.studyGroupId
     GROUP BY studyroom.studyRoomId, reservation.studyGroupId
 ) AS sub
-GROUP BY studyRoomId;
+GROUP BY name;
 
 -- Cantidad de reservas por carrera y facultad (Los grupos no tienen por qué ser de una carrera en especial, esta consulta devuelve las reservas teniendo en cuenta la carrera del líder de cada grupo) --
 SELECT COUNT(*) AS CantidadReservasPor, c.careerName AS Carrera, f.facultyName AS Facultad
