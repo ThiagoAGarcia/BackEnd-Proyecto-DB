@@ -1476,6 +1476,7 @@ def getUserReservations():
             "error": str(e)
         }), 500
     
+
 # Conseguir todas las reservas sin bibliotecario asignado en cierta fecha
 from datetime import date
 
@@ -1643,7 +1644,8 @@ def getManagedReservationsByDate():
             'error': str(ex)
         }), 500
 
-    
+
+# Asignarle un bibliotecario una reserva por medio de su cédula
 @app.route('/manageReservation', methods=['PATCH'])
 @token_required
 def patchManageReservation():
@@ -1709,6 +1711,7 @@ def patchManageReservation():
         }), 500
 
 
+# Quitarle la cédula del bibliotecario asignado a una reserva
 @app.route('/unmanageReservation', methods=['PATCH'])
 @token_required
 def patchUnmanageReservation():
@@ -1754,7 +1757,7 @@ def patchUnmanageReservation():
             'error': str(ex)
         }), 500
 
-    
+
 # Conseguir todas las solicitudes de un usuario
 @app.route('/myGroupRequests', methods=['GET'])
 @token_required
@@ -1813,6 +1816,7 @@ def getAllUserGroupRequests():
             'description': 'No se pudieron encontrar las solicitudes.',
             'error': str(ex)
         }), 500
+
 
 # Ver todos los grupos en los que uno es parte como lider o integrante
 @app.route('/myGroups', methods=['GET'])
@@ -1885,6 +1889,7 @@ def getAllGroups():
             'success': False,
             'error': str(ex)
         }), 500
+
 
 # Eliminar un grupo cuando se es el líder
 @app.route('/deleteMyGroup/<groupId>', methods=['DELETE'])
@@ -2049,6 +2054,46 @@ def getGroupInformation(groupId):
             'error': str(ex)
         }), 500
 
+@app.route('/leaveGroup/<groupId>', methods=['DELETE'])
+@token_required
+def leaveGroup(groupId):
+    try:
+        conn = connection()
+        cursor = conn.cursor()
+        ci = request.ci
+        groupId = int(groupId)
+
+        cursor.execute(''' 
+            SELECT sG.leader AS leader
+            FROM studyGroup sG
+            WHERE sG.studyGroupId = %s
+        ''', (groupId,))
+        leaderData = cursor.fetchone()
+        leaderCi = leaderData['leader']
+
+        if ci == leaderCi:
+            return jsonify({
+                'success': False,
+                'description': 'No puedes abandonar un grupo del que eres líder.'
+            }), 401
+        
+        cursor.execute(''' 
+            DELETE FROM studyGroupParticipant sGP
+            WHERE sGP.member = %s AND sGP.studyGroupId = %s;
+        ''', (ci, groupId))
+        conn.commit()
+        cursor.close()
+
+        return jsonify({
+            'success': True, 
+            'description': 'Has abandonado el grupo.'
+        }), 200
+
+    except Exception as ex:
+        return jsonify({
+            'success': False,
+            'description': 'No se pudo procesar la solicitud.'
+        }), 500
 
 # Aceptar una solicitud
 @app.route('/group/<groupId>/acceptRequest', methods=['PATCH'])
