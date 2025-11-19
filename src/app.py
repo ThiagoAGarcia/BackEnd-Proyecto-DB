@@ -2127,6 +2127,12 @@ def deleteGroupById(groupId):
             conn.commit()
 
             cursor.execute(''' 
+                DELETE FROM studyGroupParticipant
+                WHERE studyGroupId = %s
+            ''', (groupId))
+            conn.commit()
+
+            cursor.execute(''' 
                 SELECT r.studyGroupId
                 FROM reservation r
                 WHERE r.studyGroupId = %s;
