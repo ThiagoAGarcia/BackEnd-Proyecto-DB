@@ -1339,7 +1339,38 @@ def sendGroupRequest():
                 'description': 'No eres el líder del equipo'
             }), 400
 
-        cursor.execute("INSERT INTO groupRequest VALUES (%s, %s, DEFAULT, DEFAULT, DEFAULT)", (studyGroupId, receiver,))
+        cursor.execute("""
+                    SELECT status FROM groupRequest 
+                    WHERE studyGroupId = %s AND receiver = %s
+                """, (studyGroupId, receiver))
+
+        existing_request = cursor.fetchone()
+
+        if existing_request:
+            status = existing_request['status']
+
+            if status == "Pendiente":
+                return jsonify({
+                    "success": False,
+                    "description": "Ya se envió una solicitud a este usuario."
+                }), 400
+
+            if status == "Rechazada":
+                return jsonify({
+                    "success": False,
+                    "description": "El usuario ya rechazó la solicitud y no puede ingresar al grupo."
+                }), 400
+
+            if status == "Aceptada":
+                return jsonify({
+                    "success": False,
+                    "description": "El integrante ya está en el grupo."
+                }), 400
+
+        cursor.execute("""
+            INSERT INTO groupRequest (studyGroupId, receiver) 
+            VALUES (%s, %s)
+        """, (studyGroupId, receiver))
 
         conn.commit()
         cursor.close()
@@ -1348,9 +1379,9 @@ def sendGroupRequest():
             'success': True,
             'description': 'Solicitud realizada correctamente'
         }), 201
+
     except Exception as ex:
         conn.rollback()
-        print("ERROR EN /sendGroupRequest:", ex)
         return jsonify({
             'success': False,
             'description': 'Error al realizar la solicitud',
@@ -3095,11 +3126,13 @@ def searchUsersOutsideRequest():
         text = request.args.get("text", "").strip()
         group_id = request.args.get("groupId")
 
-        if not group_id:
+        if not group_id or not group_id.isdigit():
             return jsonify({
                 "success": False,
-                "description": "Falta groupId"
+                "description": "Falta groupId válido"
             }), 400
+
+        group_id = int(group_id)
 
         search = f"%{text}%"
 
