@@ -7,6 +7,7 @@ from encrypt import hash_pwd
 from config import config
 from db import connection
 from functools import wraps
+import re
 
 
 app = Flask(__name__)
@@ -708,8 +709,10 @@ def getUserGroupRequest():
         return jsonify({'success' : False, 'description': str(ex)}), 404
 # Registro de usuarios por administrador
 @app.route('/registerAdmin', methods=['POST'])
-@token_required 
+@token_required
 def postRegisterAdmin():
+    conn = None
+    cursor = None
     try:
         if not user_has_role("administrator"):
             return jsonify({
@@ -721,24 +724,41 @@ def postRegisterAdmin():
 
         ci = data.get('ci')
         name = data.get('name')
-        lastname = data.get('lastname')
+        lastname = data.get('lastName') or data.get('lastname')
         email = data.get('email')
         password = data.get('password')
-        career_name = data.get('career')
+        confirmPassword = data.get('confirmPassword')
+        roles = data.get('roles', [])
+        careerId = data.get('careerId')
         second_career = data.get('secondCareer')
+        campus = data.get('campus')
+        buildingName = data.get('buildingName')
 
-        if not all([ci, name, lastname, email, password, career_name]):
+        if not all([ci, name, lastname, email, password, confirmPassword]):
             return jsonify({
                 'success': False,
                 'description': 'Faltan datos obligatorios'
             }), 400
 
-        if len(ci) != 8:
+        if not roles or len(roles) == 0:
+            return jsonify({
+                'success': False,
+                'description': 'Debe seleccionar al menos un rol'
+            }), 400
+
+        if password != confirmPassword:
+            return jsonify({
+                'success': False,
+                'description': 'Las contraseñas deben coincidir'
+            }), 400
+
+        if len(ci) != 8 or not ci.isdigit():
             return jsonify({
                 'success': False,
                 'description': 'ci invalida'
             }), 400
 
+        # Validación de cédula
         valueCheck = 0
         digitoVerificador = ci[7]
         multiplicador = '2987634'
@@ -759,44 +779,161 @@ def postRegisterAdmin():
                 'description': 'La contraseña es muy corta (mínimo 9 caracteres)'
             }), 400
 
+        # Validaciones de formato nombre/apellido/email
+        regex_nombre = r'^[A-Za-zÁÉÍÓÚáéíóúñÑ\s]+$'
+
+        if not re.match(regex_nombre, name.strip()) or len(name.strip()) < 3:
+            return jsonify({
+                'success': False,
+                'description': 'Formato de nombre invalido'
+            }), 400
+
+        if not re.match(regex_nombre, lastname.strip()) or len(lastname.strip()) < 3:
+            return jsonify({
+                'success': False,
+                'description': 'Formato de apellido invalido'
+            }), 400
+
+        valido_mail = email.endswith(("@correo.ucu.edu.uy", "@ucu.edu.uy"))
+        if not valido_mail:
+            return jsonify({
+                'success': False,
+                'description': 'correo invalido'
+            }), 400
+
+        # Reglas según roles
+        if 'student' in roles:
+            if not careerId:
+                return jsonify({
+                    'success': False,
+                    'description': 'Debe seleccionar una carrera para el rol student'
+                }), 400
+            if not campus:
+                return jsonify({
+                    'success': False,
+                    'description': 'Debe seleccionar un campus para el rol student'
+                }), 400
+
+        if 'professor' in roles and not campus:
+            return jsonify({
+                'success': False,
+                'description': 'Debe seleccionar un campus para el rol professor'
+            }), 400
+
+        if 'librarian' in roles and not buildingName:
+            return jsonify({
+                'success': False,
+                'description': 'Debe seleccionar un edificio para el rol librarian'
+            }), 400
+
         conn = connection()
         cursor = conn.cursor()
 
-        cursor.execute("SELECT careerId FROM career WHERE careerName = %s", (career_name,))
-        result = cursor.fetchone()
-
-        if not result:
+        # Verificar unicidad de ci y mail
+        cursor.execute("SELECT ci FROM user WHERE ci = %s", (ci,))
+        if cursor.fetchone():
             cursor.close()
+            conn.close()
             return jsonify({
                 'success': False,
-                'description': f'No se encontró la carrera \"{career_name}\"'
-            }), 404
+                'description': 'La cédula ya está en uso'
+            }), 409
 
-        careerId = result['careerId']
+        cursor.execute("SELECT mail FROM user WHERE mail = %s", (email,))
+        if cursor.fetchone():
+            cursor.close()
+            conn.close()
+            return jsonify({
+                'success': False,
+                'description': 'El correo electrónico ya está en uso'
+            }), 409
+
+        # Validar carrera si es student
+        if 'student' in roles and careerId:
+            cursor.execute('SELECT careerId FROM career WHERE careerId = %s', (careerId,))
+            result = cursor.fetchone()
+            if not result:
+                cursor.close()
+                conn.close()
+                return jsonify({
+                    'success': False,
+                    'description': f'No se encontró la carrera "{careerId}"'
+                }), 404
+            careerId = result['careerId']
+
+        # Validar campus si viene
+        if campus:
+            cursor.execute('SELECT 1 FROM campus WHERE campusName = %s', (campus,))
+            result = cursor.fetchone()
+            if not result:
+                cursor.close()
+                conn.close()
+                return jsonify({
+                    'success': False,
+                    'description': 'No se encontró el campus'
+                }), 400
+
+        # Validar edificio si viene
+        if buildingName:
+            cursor.execute('SELECT 1 FROM building WHERE buildingName = %s', (buildingName,))
+            result = cursor.fetchone()
+            if not result:
+                cursor.close()
+                conn.close()
+                return jsonify({
+                    'success': False,
+                    'description': 'No se encontró el edificio'
+                }), 400
 
         passwordHash = hash_pwd(password)
 
+        # Insert en user y login
         cursor.execute(
             "INSERT INTO user (ci, name, lastName, mail) VALUES (%s, %s, %s, %s)",
-            (ci, name, lastname, email)
+            (ci, name.strip(), lastname.strip(), email.strip())
         )
 
         cursor.execute(
             "INSERT INTO login (mail, password) VALUES (%s, %s)",
-            (email, passwordHash)
+            (email.strip(), passwordHash)
         )
 
-        cursor.execute(
-            "INSERT INTO student (ci, careerId) VALUES (%s, %s)",
-            (ci, careerId)
-        )
-        if second_career:
+        # Rol student
+        if 'student' in roles:
             cursor.execute(
-                "INSERT INTO student (ci, careerId) VALUES (%s, %s)",
-                (ci, second_career)
+                "INSERT INTO student (ci, careerId, campus) VALUES (%s, %s, %s)",
+                (ci, careerId, campus)
             )
+            if second_career:
+                cursor.execute(
+                    "INSERT INTO student (ci, careerId) VALUES (%s, %s)",
+                    (ci, second_career)
+                )
+
+        # Rol professor
+        if 'professor' in roles:
+            cursor.execute(
+                "INSERT INTO professor (ci, campus) VALUES (%s, %s)",
+                (ci, campus)
+            )
+
+        # Rol librarian
+        if 'librarian' in roles:
+            cursor.execute(
+                "INSERT INTO librarian (ci, buildingName) VALUES (%s, %s)",
+                (ci, buildingName)
+            )
+
+        # Rol administrator
+        if 'administrator' in roles:
+            cursor.execute(
+                "INSERT INTO administrator (ci) VALUES (%s)",
+                (ci,)
+            )
+
         conn.commit()
         cursor.close()
+        conn.close()
 
         return jsonify({
             'success': True,
@@ -804,13 +941,23 @@ def postRegisterAdmin():
         }), 201
 
     except Exception as ex:
-        conn.rollback()
+        try:
+            if conn:
+                conn.rollback()
+            if cursor:
+                cursor.close()
+            if conn:
+                conn.close()
+        except:
+            pass
+
         print("ERROR EN /registerAdmin:", ex)
         return jsonify({
             'success': False,
             'description': 'Error al registrar el usuario',
             'error': str(ex)
         }), 500
+
 
 
 
@@ -1111,6 +1258,8 @@ def sendGroupRequest():
         ci_sender = request.ci
         studyGroupId = data.get('studyGroupId')
         receiver = data.get('receiver')
+        role = request.role
+
 
         if not all([studyGroupId, receiver]):
             return jsonify({
@@ -1119,6 +1268,26 @@ def sendGroupRequest():
             }), 400
         conn = connection()
         cursor = conn.cursor()
+        if role == 'student':
+            cursor.execute("""SELECT COUNT(DISTINCT studyGroup.studyGroupId) AS cant
+            FROM studyGroup
+            LEFT JOIN studyGroupParticipant
+                ON studyGroup.studyGroupId = studyGroupParticipant.studyGroupId
+            WHERE (studyGroup.leader = %s
+               OR studyGroupParticipant.member = %s) AND studyGroup.status = 'activo';
+            """, (receiver, receiver))
+
+            result = cursor.fetchone()
+
+            if result['cant'] >= 3:
+                return jsonify({
+                    'success': False,
+                    'description': f'el usuario con ci: {receiver} tiene mas de 3 grupos en esta semana'
+                })
+
+
+
+
 
         # ACÁ VERIFICA QUE EL QUE RECIBE LA SOLICITUD NO SEA UN BIBLIOTECARIO O ADMINISTRADOR (Porque no tiene sentido)
         # SI EL USUARIO TIENE EL ROL ADMIN AUNQUE TAMBIEN SEA USUARIO SE ROMPE, DEBEMOS CHEQUEAR QUE EL USUARIO SEA USER O PROFESOR
@@ -1181,7 +1350,7 @@ def sendGroupRequest():
         }), 201
     except Exception as ex:
         conn.rollback()
-        print("ERROR EN /createGroupRequest:", ex)
+        print("ERROR EN /sendGroupRequest:", ex)
         return jsonify({
             'success': False,
             'description': 'Error al realizar la solicitud',
@@ -2423,6 +2592,117 @@ def leaveGroup(groupId):
             'success': False,
             'description': 'No se pudo procesar la solicitud.'
         }), 500
+@app.route('/group/<groupId>/info', methods=['GET'])
+@token_required
+def getGroupInfo(groupId):
+    try:
+        if not user_has_role("student", "professor"):
+            return jsonify({
+                "success": False,
+                "description": "Usuario no autorizado",
+            }), 401
+
+        conn = connection()
+        cursor = conn.cursor()
+
+        ci = request.ci
+        groupId = int(groupId)
+
+        cursor.execute("""
+            SELECT 
+                sg.studyGroupId AS id,
+                sg.studyGroupName AS name,
+                sg.status AS status,
+                leader.ci AS leaderCi,
+                leader.name AS leaderName,
+                leader.lastName AS leaderLastName
+            FROM studyGroup sg
+            JOIN user leader ON sg.leader = leader.ci
+            WHERE sg.studyGroupId = %s
+        """, (groupId,))
+
+        group_row = cursor.fetchone()
+
+        if not group_row:
+            cursor.close()
+            conn.close()
+            return jsonify({
+                "success": False,
+                "description": "Grupo no encontrado"
+            }), 404
+
+        cursor.execute("""
+            SELECT u.ci, u.name, u.lastName
+            FROM studyGroupParticipant sgp
+            JOIN user u ON sgp.member = u.ci
+            WHERE sgp.studyGroupId = %s
+            ORDER BY u.lastName, u.name
+        """, (groupId,))
+
+        members_rows = cursor.fetchall()
+
+        cursor.execute("""
+            SELECT MAX(sr.capacity) AS maxCapacity
+            FROM studyRoom sr
+            JOIN building b ON sr.buildingName = b.buildingName
+            WHERE b.campus = (
+                SELECT COALESCE(
+                    (SELECT campus FROM student   WHERE ci = %s LIMIT 1),
+                    (SELECT campus FROM professor WHERE ci = %s LIMIT 1)
+                )
+            );
+        """, (ci, ci))
+
+        cap_row = cursor.fetchone()
+        max_capacity = cap_row["maxCapacity"] if cap_row else None
+
+        current_members = 1 + len(members_rows)
+
+        is_full = False
+        if max_capacity is not None:
+            is_full = current_members >= max_capacity
+
+        group_data = {
+            "id": group_row["id"],
+            "name": group_row["name"],
+            "status": group_row["status"],
+            "leader": {
+                "ci": group_row["leaderCi"],
+                "name": group_row["leaderName"],
+                "lastName": group_row["leaderLastName"],
+            },
+            "members": [
+                {
+                    "ci": m["ci"],
+                    "name": m["name"],
+                    "lastName": m["lastName"],
+                }
+                for m in members_rows
+            ],
+            "currentMembers": current_members,
+            "maxCapacity": max_capacity,
+            "isFull": is_full,
+        }
+
+        cursor.close()
+        conn.close()
+
+        return jsonify({
+            "success": True,
+            "group": group_data
+        }), 200
+
+    except Exception as ex:
+        try:
+            conn.rollback()
+        except:
+            pass
+
+        return jsonify({
+            "success": False,
+            "description": "No se pudo obtener la información del grupo.",
+            "error": str(ex)
+        }), 500
 
 # Aceptar una solicitud
 @app.route('/group/<groupId>/acceptRequest', methods=['PATCH'])
@@ -2440,6 +2720,57 @@ def acceptUserRequest(groupId):
         ci = request.ci
         groupId = int(groupId)
 
+        cursor.execute("""SELECT COUNT(DISTINCT studyGroup.studyGroupId) AS cant
+                FROM studyGroup
+                LEFT JOIN studyGroupParticipant
+                    ON studyGroup.studyGroupId = studyGroupParticipant.studyGroupId
+                WHERE (studyGroup.leader = %s
+                   OR studyGroupParticipant.member = %s) AND studyGroup.status = 'activo';
+                """, (ci, ci))
+
+        result = cursor.fetchone()
+
+        if result['cant'] >= 3:
+            denyGroupRequest(groupId)
+            return jsonify({
+                'success': False,
+                'description': f'Ya perteneces a mas de 3 grupos'
+            })
+
+        cursor.execute("""
+            SELECT MAX(sr.capacity) AS maxCapacity
+            FROM studyRoom sr
+            JOIN building b ON sr.buildingName = b.buildingName
+            WHERE b.campus = (
+                SELECT COALESCE(
+                    (SELECT campus FROM student   WHERE ci = %s LIMIT 1),
+                    (SELECT campus FROM professor WHERE ci = %s LIMIT 1)
+                )
+            );
+        """, (ci, ci))
+
+        cap_row = cursor.fetchone()
+        max_capacity = cap_row['maxCapacity']
+
+        cursor.execute("""
+            SELECT 
+                1 + COUNT(sgp.member) AS currentMembers
+            FROM studyGroup sg
+            LEFT JOIN studyGroupParticipant sgp 
+                   ON sg.studyGroupId = sgp.studyGroupId
+            WHERE sg.studyGroupId = %s
+            GROUP BY sg.studyGroupId;
+        """, (groupId,))
+
+        members_row = cursor.fetchone()
+        current_members = members_row['currentMembers']
+
+        if current_members >= max_capacity:
+            denyGroupRequest(groupId)
+            return jsonify({
+                'success': False,
+                'description': 'el grupo esta lleno'
+            })
 
         cursor.execute(''' 
             UPDATE groupRequest
@@ -2447,7 +2778,6 @@ def acceptUserRequest(groupId):
             WHERE receiver = %s AND studyGroupId = %s;
         ''', (ci, groupId))
 
-    
         if cursor.rowcount == 0:
             cursor.close()
             conn.close()
@@ -2456,7 +2786,6 @@ def acceptUserRequest(groupId):
                 'description': 'No se encontró una solicitud pendiente para este grupo.'
             }), 404
 
-    
         cursor.execute(''' 
             INSERT INTO studyGroupParticipant (studyGroupId, member)
             VALUES (%s, %s)
@@ -2482,6 +2811,7 @@ def acceptUserRequest(groupId):
             'description': 'No se pudo procesar la solicitud.',
             'error': str(ex)
         }), 500
+
 
 
 # Rechazar una solicitud
@@ -2891,6 +3221,8 @@ def createGroup():
         data = request.json
         nombre = data.get("studyGroupName")
         leader_ci = request.ci
+        role = request.role
+
 
         if not nombre:
             return jsonify({
@@ -2900,6 +3232,22 @@ def createGroup():
 
         conn = connection()
         cursor = conn.cursor()
+        if role == 'student':
+            cursor.execute("""
+            SELECT COUNT(DISTINCT studyGroup.studyGroupId) AS cant
+            FROM studyGroup
+            LEFT JOIN studyGroupParticipant
+                ON studyGroup.studyGroupId = studyGroupParticipant.studyGroupId
+            WHERE (studyGroup.leader = %s
+               OR studyGroupParticipant.member = %s) AND studyGroup.status = 'activo';
+            """, (leader_ci, leader_ci))
+
+            result = cursor.fetchone()
+            if result['cant'] >= 3:
+                return jsonify({
+                    'success': False,
+                    'description': 'no puedes crear ni pertenecer a mas de 3 grupos'
+                })
 
         cursor.execute("""
             INSERT INTO studyGroup (studyGroupName, leader)
