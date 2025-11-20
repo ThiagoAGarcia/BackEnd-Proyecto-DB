@@ -2568,7 +2568,7 @@ def deleteUserById(studyGroupId, userId):
         if not member:
             return jsonify({
                 "success": False,
-                "description": "El usuario no pertenece a este grupo"
+                "description": "El usuario fue no encontrado en este grupo"
             }), 404
 
         cursor.execute("""
@@ -2684,7 +2684,7 @@ def getUserbyCi():
     except Exception as ex:
         return jsonify({'success': False, 'description': 'Error', 'error': str(ex)}), 500
 
-#Buscar
+# Buscar los usuarios para crear un grupo nuevo
 @app.route('/searchUsersRequest', methods=['GET'])
 @token_required
 def searchUsersRequest():
@@ -2697,12 +2697,13 @@ def searchUsersRequest():
         role = request.role
         current_ci = request.ci
 
-
         conn = connection()
         cursor = conn.cursor()
 
         text = request.args.get("text", "").strip()
         search = f"%{text}%"
+
+        # USUARIOS QUE APARECEN SI SOS UN ESTUDIANTE
 
         if role == 'student':
             cursor.execute("""
@@ -2715,6 +2716,8 @@ def searchUsersRequest():
                     AND u.ci <> %s
                 ORDER BY u.name ASC
             """, (search, current_ci))
+
+        # USUARIOS QUE APARECEN SI SOS UN PROFESOR
 
         if role == 'professor':
             cursor.execute("""
@@ -2733,6 +2736,79 @@ def searchUsersRequest():
                     AND (s.ci IS NOT NULL OR p.ci IS NOT NULL)
                 ORDER BY u.name ASC
             """, (search, current_ci))
+
+        users = cursor.fetchall()
+        cursor.close()
+
+        return jsonify({
+            "success": True,
+            "users": users
+        })
+
+    except Exception as ex:
+        return jsonify({'success': False, 'description': 'Error', 'error': str(ex)}), 500
+
+# Buscar usuarios para agregar en un grupo ya creado
+@app.route('/searchUsersOutsideRequest', methods=['GET'])
+@token_required
+def searchUsersOutsideRequest():
+    try:
+        if not user_has_role("student", "professor"):
+            return jsonify({
+                "success": False,
+                "description": "Usuario no autorizado",
+            }), 401
+
+        role = request.role
+        current_ci = request.ci
+
+        text = request.args.get("text", "").strip()
+        group_id = request.args.get("groupId")
+
+        if not group_id:
+            return jsonify({
+                "success": False,
+                "description": "Falta groupId"
+            }), 400
+
+        search = f"%{text}%"
+
+        conn = connection()
+        cursor = conn.cursor()
+
+        # USUARIOS QUE APARECEN SI SOS UN ESTUDIANTE
+
+        if role == 'student':
+            cursor.execute("""
+                SELECT u.ci, u.name, u.lastName, u.mail
+                FROM user u 
+                INNER JOIN student s ON u.ci = s.ci
+                WHERE u.mail LIKE %s AND u.ci != %s AND u.ci NOT IN (
+                      SELECT member FROM studyGroupParticipant WHERE studyGroupId = %s
+                ) AND u.ci NOT IN (
+                SELECT receiver FROM groupRequest WHERE studyGroupId = %s AND status = 'Rechazada'
+                )
+                ORDER BY u.name ASC
+            """, (search, current_ci, group_id, group_id))
+
+        # USUARIOS QUE APARECEN SI SOS UN PROFESOR
+
+        if role == 'professor':
+            cursor.execute("""
+            SELECT u.ci, u.name, u.lastName, u.mail,
+            CASE WHEN s.ci IS NOT NULL THEN 'student' WHEN p.ci IS NOT NULL THEN 'professor' 
+            END AS role
+            FROM user u
+            LEFT JOIN student s ON u.ci = s.ci
+            LEFT JOIN professor p ON u.ci = p.ci
+            WHERE u.mail LIKE %s AND u.ci != %s AND (s.ci IS NOT NULL OR p.ci IS NOT NULL) AND u.ci NOT IN (
+                SELECT member FROM studyGroupParticipant WHERE studyGroupId = %s
+            )
+            AND u.ci NOT IN (
+                SELECT receiver FROM groupRequest WHERE studyGroupId = %s AND status = 'Rechazada'
+            )
+            ORDER BY u.name ASC
+        """, (search, current_ci, group_id, group_id))
 
         users = cursor.fetchall()
         cursor.close()
