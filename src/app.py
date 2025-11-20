@@ -76,6 +76,26 @@ def token_required(f):
         return f(*args, **kwargs)
     return decorated
 
+def check_user_is_active(ci):
+    conn = connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            SELECT isActive
+            FROM user
+            WHERE ci = %s
+        """, (ci,))
+        row = cursor.fetchone()
+
+        if not row:
+            return False, "Usuario no encontrado"
+        if not row["isActive"]:
+            return False, "Usuario inactivo"
+
+        return True, None
+    finally:
+        cursor.close()
+        conn.close()
 
 def pageNotFound(error):
     return "<h1>La página que buscas no existe.</h1>"
@@ -138,6 +158,12 @@ def getUserCiSanctions(ci):
                 "success": False,
                 "description": "Usuario no autorizado",
             }), 401
+        is_active, msg = check_user_is_active(ci)
+        if not is_active:
+            return jsonify({
+                "success": False,
+                "description": msg
+            }), 403
 
         conn = connection()
         cursor = conn.cursor()
@@ -188,6 +214,13 @@ def getMySanctions():
         cursor = conn.cursor()
         ci = request.ci
 
+        is_active, msg = check_user_is_active(request.ci)
+        if not is_active:
+            return jsonify({
+                "success": False,
+                "description": msg
+            }), 403
+
         cursor.execute("""
             SELECT s.description, GREATEST(DATEDIFF(s.endDate, CURRENT_DATE), 0) AS dias_restantes, s.startDate, s.endDate
             FROM sanction s
@@ -226,9 +259,6 @@ def postNewSanction():
                 "description": "Usuario no autorizado",
             }), 401
 
-        ci = int(ci)
-        groupId = int(groupId)
-        
         data = request.get_json()
         groupParticipantCi = data.get('groupParticipantCi')
         librarianCi = request.ci 
@@ -236,6 +266,19 @@ def postNewSanction():
         startDate = data.get('startDate')
         endDate = data.get('endDate')
 
+        is_active, msg = check_user_is_active(groupParticipantCi)
+        if not is_active:
+            return jsonify({
+                "success": False,
+                "description": msg
+            }), 403
+
+        is_active, msg = check_user_is_active(librarianCi)
+        if not is_active:
+            return jsonify({
+                "success": False,
+                "description": msg
+            }), 403
         if not all([groupParticipantCi, librarianCi, description, startDate, endDate]):
             return jsonify({
                 'success': False,
@@ -280,6 +323,13 @@ def createCareer():
                 "success": False,
                 "description": "Usuario no autorizado",
             }), 401
+
+        is_active, msg = check_user_is_active(request.ci)
+        if not is_active:
+            return jsonify({
+                "success": False,
+                "description": msg
+            }), 403
 
         data = request.get_json()
         careerName = data.get('careerName')
@@ -333,7 +383,7 @@ def getUserByCareer(careerID):
             SELECT u.name, u.lastName
             FROM user u
             JOIN student s ON u.ci = s.ci
-            WHERE s.careerId = %s
+            WHERE s.careerId = %s AND u.isActive = TRUE
         """
         cursor.execute(SQL, (careerID,))
         queryResults = cursor.fetchall()
@@ -370,7 +420,7 @@ def getUsers():
         cursor = conn.cursor()
 
         cursor.execute('''
-            SELECT u.ci, u.name, u.lastName
+            SELECT u.ci, u.name, u.lastName, u.isActive
             FROM user u
             JOIN login l ON u.mail = l.mail
             WHERE u.ci != %s
@@ -382,6 +432,7 @@ def getUsers():
 
         for row in queryResults:
             ci = row['ci']
+            isActive = row['isActive']
             roles = []
             extra_data = {
                 "careerId": None,
@@ -413,6 +464,7 @@ def getUsers():
                 "ci": row["ci"],
                 "name": row["name"],
                 "lastName": row["lastName"],
+                "isActive": row["isActive"],
                 "roles": roles,
                 "careerId": extra_data["careerId"],
                 "campus": extra_data["campus"],
@@ -454,9 +506,11 @@ def getCareers():
         return jsonify({'success': False, 'description': 'Error', 'error': str(ex)}), 500
 
 
-@app.route('/deleteUserByCi/<ci>', methods=['DELETE'])
+@app.route('/deactivateUser/<ci>', methods=['PATCH'])
 @token_required
-def deleteUserByCi(ci):
+def deactivateUser(ci):
+    conn = None
+    cursor = None
     try:
         if not user_has_role("administrator"):
             return jsonify({
@@ -464,13 +518,22 @@ def deleteUserByCi(ci):
                 "description": "Usuario no autorizado"
             }), 401
 
-        ci = int(ci)
+        try:
+            ci = int(ci)
+        except ValueError:
+            return jsonify({
+                "success": False,
+                "description": "CI inválida"
+            }), 400
 
         conn = connection()
         cursor = conn.cursor()
 
-    
-        cursor.execute("SELECT mail FROM user WHERE ci = %s", (ci,))
+        cursor.execute("""
+            SELECT ci, isActive
+            FROM user
+            WHERE ci = %s
+        """, (ci,))
         user = cursor.fetchone()
 
         if not user:
@@ -478,35 +541,99 @@ def deleteUserByCi(ci):
             conn.close()
             return jsonify({
                 "success": False,
-                "description": f"Usuario con CI {ci} no encontrado"
+                "description": f"Usuario con cédula {ci} no encontrado"
             }), 404
 
-        user_mail = user["mail"]
+        if not user["isActive"]:
+            cursor.close()
+            conn.close()
+            return jsonify({
+                "success": False,
+                "description": "El usuario ya se encuentra inactivo"
+            }), 400
 
-        cursor.execute("DELETE FROM login WHERE mail = %s", (user_mail,))
+        # 1) Marcar usuario como inactivo
+        cursor.execute("""
+            UPDATE user
+            SET isActive = FALSE
+            WHERE ci = %s
+        """, (ci,))
+
+        # 2) Eliminarlo de todos los grupos donde es miembro
+        cursor.execute("""
+            DELETE FROM studyGroupParticipant
+            WHERE member = %s
+        """, (ci,))
+
+        # 3) Grupos donde el usuario es líder
+        cursor.execute("""
+            SELECT studyGroupId
+            FROM studyGroup
+            WHERE leader = %s
+        """, (ci,))
+        leader_groups = cursor.fetchall()
+
+        if leader_groups:
+            group_ids = [g["studyGroupId"] for g in leader_groups]
+            placeholders = ",".join(["%s"] * len(group_ids))
+
+            # 3.a) Poner esos grupos como Inactivo
+            cursor.execute(f"""
+                UPDATE studyGroup
+                SET status = 'Inactivo'
+                WHERE studyGroupId IN ({placeholders})
+            """, group_ids)
+
+            # 3.b) Eliminar todos los participantes de esos grupos
+            cursor.execute(f"""
+                DELETE FROM studyGroupParticipant
+                WHERE studyGroupId IN ({placeholders})
+            """, group_ids)
+
+            # 3.c) Cancelar reservas futuras activas de esos grupos
+            cursor.execute(f"""
+                UPDATE reservation
+                SET state = 'Cancelada'
+                WHERE studyGroupId IN ({placeholders})
+                  AND date >= CURDATE()
+                  AND state = 'Activa'
+            """, group_ids)
+
+            # 3.d) Invalidar solicitudes ligadas a esos grupos
+            cursor.execute(f"""
+                UPDATE groupRequest
+                SET isValid = FALSE
+                WHERE studyGroupId IN ({placeholders})
+            """, group_ids)
+
+        # 4) Invalidar solicitudes donde él es receiver
+        cursor.execute("""
+            UPDATE groupRequest
+            SET isValid = FALSE
+            WHERE receiver = %s
+        """, (ci,))
+
         conn.commit()
-
         cursor.close()
         conn.close()
 
         return jsonify({
             "success": True,
-            "description": f"Usuario {ci} eliminado correctamente"
+            "description": f"Usuario {ci} deshabilitado correctamente y su interacción con grupos actualizada"
         }), 200
 
     except Exception as ex:
-        try:
+        if conn:
             conn.rollback()
+        if cursor:
             cursor.close()
-            conn.close()
-        except:
-            pass
-        
         return jsonify({
             "success": False,
-            "description": "Error al intentar eliminar el usuario del login",
+            "description": "Error interno",
             "error": str(ex)
         }), 500
+
+
 
 
 # Registro de usuario
@@ -689,6 +816,13 @@ def getUserGroupRequest():
        ci = request.ci
        conn = connection()
        cursor = conn.cursor()
+
+       is_active, msg = check_user_is_active(request.ci)
+       if not is_active:
+           return jsonify({
+               "success": False,
+               "description": msg
+           }), 403
 
        cursor.execute("SELECT studyGroup.studyGroupName, groupRequest.requestDate, studyGroup.studyGroupId FROM groupRequest JOIN studyGroup on studyGroup.studyGroupId = groupRequest.studyGroupId WHERE groupRequest.status = 'Pendiente' AND receiver = %s", (ci,))
        result = cursor.fetchall()
@@ -977,11 +1111,37 @@ def postLogin():
         conn = connection()
         cursor = conn.cursor()
 
+        cursor.execute("""
+            SELECT ci, isActive
+            FROM user
+            WHERE mail = %s
+        """, (email,))
+        user_row = cursor.fetchone()
+
+        if not user_row:
+            cursor.close()
+            conn.close()
+            return jsonify({
+                "success": False,
+                "description": "Usuario no encontrado"
+            }), 404
+
+        if not user_row["isActive"]:
+            cursor.close()
+            conn.close()
+            return jsonify({
+                "success": False,
+                "description": "Usuario deshabilitado"
+            }), 403
+
+        ci = user_row["ci"]
+
         cursor.execute("SELECT password FROM login WHERE mail = %s", (email,))
         result = cursor.fetchone()
 
         if not result:
             cursor.close()
+            conn.close()
             return jsonify({'success': False, 'description': 'Credenciales inválidas'}), 401
 
         stored_hash = result['password']
@@ -990,33 +1150,22 @@ def postLogin():
 
         if not bcrypt.checkpw(password.encode(), stored_hash):
             cursor.close()
+            conn.close()
             return jsonify({'success': False, 'description': 'Credenciales inválidas'}), 401
 
-        cursor.execute("SELECT ci FROM user WHERE mail = %s", (email,))
-        ci_result = cursor.fetchone()
-        if not ci_result:
-            cursor.close()
-            return jsonify({'success': False, 'description': 'Usuario no encontrado'}), 404
-
-        ci = ci_result['ci']
-
         roles = []
-
 
         cursor.execute("SELECT 1 FROM student WHERE ci = %s", (ci,))
         if cursor.fetchone():
             roles.append("student")
 
-
         cursor.execute("SELECT 1 FROM professor WHERE ci = %s", (ci,))
         if cursor.fetchone():
             roles.append("professor")
 
-
         cursor.execute("SELECT 1 FROM librarian WHERE ci = %s", (ci,))
         if cursor.fetchone():
             roles.append("librarian")
-
 
         cursor.execute("SELECT 1 FROM administrator WHERE ci = %s", (ci,))
         if cursor.fetchone():
@@ -1025,7 +1174,6 @@ def postLogin():
         if not roles:
             roles = ["unknown"]
 
-
         prioridad = ['administrator', 'librarian', 'professor', 'student']
         main_role = next((r for r in prioridad if r in roles), roles[0])
 
@@ -1033,7 +1181,7 @@ def postLogin():
         access_payload = {
             'email': email,
             'ci': ci,
-            'role': main_role, 
+            'role': main_role,
             'roles': roles,
             'exp': now + timedelta(minutes=120)
         }
@@ -1041,6 +1189,7 @@ def postLogin():
         access_token = jwt.encode(access_payload, SECRET_KEY, algorithm='HS256')
 
         cursor.close()
+        conn.close()
 
         return jsonify({
             'success': True,
@@ -1060,10 +1209,13 @@ def postLogin():
         }), 500
 
 
+
 # Hacer una nueva reserva
 @app.route('/newReservation', methods=['POST'])
 @token_required
 def newReservation():
+    conn = None
+    cursor = None
     try:
         if not user_has_role("student", "professor"):
             return jsonify({
@@ -1085,51 +1237,70 @@ def newReservation():
                 'description': 'Faltan datos obligatorios'
             }), 400
 
-        conn = connection()
-        cursor = conn.cursor()
-
+        # Validar fecha futura
         if datetime.strptime(date, "%Y-%m-%d").date() < datetime.now().date():
-            cursor.close()
             return jsonify({
                 'success': False,
                 'description': 'No se puede reservar para una fecha que ya pasó'
             }), 400
 
-        cursor.execute("SELECT studyGroupId FROM studyGroup WHERE studyGroupId = %s", (studyGroupId,))
+        conn = connection()
+        cursor = conn.cursor()
+
+        # Verificar que el grupo exista
+        cursor.execute(
+            "SELECT studyGroupId FROM studyGroup WHERE studyGroupId = %s",
+            (studyGroupId,)
+        )
         result = cursor.fetchone()
         if not result:
-            cursor.close()
             return jsonify({
                 'success': False,
                 'description': f'No se encontró el grupo \"{studyGroupId}\"'
             }), 404
 
-        cursor.execute("SELECT studyRoomId FROM studyRoom WHERE studyRoomId = %s", (studyRoomId,))
+        # Verificar que la sala exista
+        cursor.execute(
+            "SELECT studyRoomId FROM studyRoom WHERE studyRoomId = %s",
+            (studyRoomId,)
+        )
         result = cursor.fetchone()
         if not result:
-            cursor.close()
             return jsonify({
                 'success': False,
                 'description': f'No se encontró la sala \"{studyRoomId}\"'
             }), 404
 
-        cursor.execute("SELECT shiftId FROM shift WHERE shiftId = %s", (shiftId,))
+        # Verificar que el turno exista
+        cursor.execute(
+            "SELECT shiftId FROM shift WHERE shiftId = %s",
+            (shiftId,)
+        )
         result = cursor.fetchone()
         if not result:
-            cursor.close()
             return jsonify({
                 'success': False,
                 'description': f'No se encontró el turno \"{shiftId}\"'
             }), 404
 
+        # LIMPIAR USUARIOS INACTIVOS DEL GRUPO ANTES DE RESERVAR
+        cursor.execute("""
+            DELETE sgp
+            FROM studyGroupParticipant AS sgp
+            JOIN user u ON sgp.member = u.ci
+            WHERE sgp.studyGroupId = %s
+              AND u.isActive = FALSE
+        """, (studyGroupId,))
+
+
+        # Crear la reserva
         cursor.execute("""
             INSERT INTO reservation 
                 (studyGroupId, studyRoomId, date, shiftId, assignedLibrarian, reservationCreateDate, state)
-            VALUES (%s, %s, %s, %s, null, %s, %s)
+            VALUES (%s, %s, %s, %s, NULL, %s, %s)
         """, (studyGroupId, studyRoomId, date, shiftId, reservationCreateDate.date(), state))
 
         conn.commit()
-        cursor.close()
 
         return jsonify({
             'success': True,
@@ -1144,7 +1315,8 @@ def newReservation():
         }), 500
 
 
-# Conseguir información de un grupo cuando se es parte
+
+
 @app.route('/myGroup/<groupId>', methods=['GET'])
 @token_required
 def getGroupUser(groupId):
@@ -1165,8 +1337,13 @@ def getGroupUser(groupId):
             FROM studyGroup sg
             LEFT JOIN studyGroupParticipant sgp 
                 ON sg.studyGroupId = sgp.studyGroupId
+            LEFT JOIN user u_leader ON sg.leader = u_leader.ci
+            LEFT JOIN user u_member ON sgp.member = u_member.ci
             WHERE sg.studyGroupId = %s
-              AND (sg.leader = %s OR sgp.member = %s)
+              AND (
+                    (sg.leader = %s AND u_leader.isActive = TRUE)
+                 OR (sgp.member = %s AND u_member.isActive = TRUE)
+              )
         """, (groupId, ci, ci))
         result = cursor.fetchone()
 
@@ -1191,9 +1368,9 @@ def getGroupUser(groupId):
                 u2.lastName AS memberLastName,
                 u2.mail AS memberMail
             FROM studyGroup sg
-            JOIN user u ON sg.leader = u.ci
+            JOIN user u ON sg.leader = u.ci AND u.isActive = TRUE
             LEFT JOIN studyGroupParticipant p ON sg.studyGroupId = p.studyGroupId
-            LEFT JOIN user u2 ON p.member = u2.ci
+            LEFT JOIN user u2 ON p.member = u2.ci AND u2.isActive = TRUE
             WHERE sg.studyGroupId = %s
         """, (groupId,))
         results = cursor.fetchall()
@@ -1240,6 +1417,7 @@ def getGroupUser(groupId):
         }), 500
 
 
+
 # Enviar una solicitud
 @app.route('/sendGroupRequest', methods=['POST'])
 @token_required
@@ -1259,6 +1437,20 @@ def sendGroupRequest():
         studyGroupId = data.get('studyGroupId')
         receiver = data.get('receiver')
         role = request.role
+
+        is_active, msg = check_user_is_active(ci_sender)
+        if not is_active:
+            return jsonify({
+                "success": False,
+                "description": msg
+            }), 403
+
+        is_active, msg = check_user_is_active(receiver)
+        if not is_active:
+            return jsonify({
+                "success": False,
+                "description": msg
+            }), 403
 
 
         if not all([studyGroupId, receiver]):
@@ -1399,6 +1591,7 @@ def getUserByNameLastMail(name, lastName, mail):
         lastName = str(lastName)
         mail = str(mail)
 
+
         cursor.execute('''
             SELECT 
                 u.ci AS ci, 
@@ -1412,7 +1605,7 @@ def getUserByNameLastMail(name, lastName, mail):
             SELECT p.ci
             FROM professor p) ps
             JOIN user u ON ps.ci = u.ci
-            WHERE u.name = %s AND u.lastName = %s AND u.mail = %s;
+            WHERE u.name = %s AND u.lastName = %s AND u.mail = %s AND u.isActive = true;
         ''', (name, lastName, mail))
         results = cursor.fetchone()
         cursor.close()
@@ -1711,7 +1904,7 @@ def getUserMailReservations(mail):
             }), 401
 
         with connection.cursor() as cursor:
-            query_user = "SELECT ci FROM user WHERE mail = %s"
+            query_user = "SELECT ci FROM user WHERE mail = %s AND isActive = TRUE"
             cursor.execute(query_user, (mail,))
             user = cursor.fetchone()
 
@@ -1722,6 +1915,13 @@ def getUserMailReservations(mail):
                 }), 404
 
             ci = user["ci"]
+
+            is_active, msg = check_user_is_active(ci)
+            if not is_active:
+                return jsonify({
+                    "success": False,
+                    "description": msg
+                }), 403
 
             query_groups = """
                 SELECT DISTINCT studyGroup.studyGroupId, studyGroup.studyGroupName
@@ -1784,6 +1984,13 @@ def getUserCiReservations():
 
         conn = connection()
         cursor = conn.cursor()
+
+        is_active, msg = check_user_is_active(request.ci)
+        if not is_active:
+            return jsonify({
+                "success": False,
+                "description": msg
+            }), 403
 
         query_groups = """
             SELECT DISTINCT studyGroup.studyGroupId, studyGroup.studyGroupName
@@ -1868,6 +2075,13 @@ def getUserReservations():
             }), 401
 
         ci = request.ci
+
+        is_active, msg = check_user_is_active(request.ci)
+        if not is_active:
+            return jsonify({
+                "success": False,
+                "description": msg
+            }), 403
         with connection.cursor() as cursor:
             query_groups = """
                 SELECT DISTINCT studyGroup.studyGroupId, studyGroup.studyGroupName
@@ -2020,6 +2234,13 @@ def getManagedReservationsByDate():
                 "success": False,
                 "description": "Usuario no autorizado",
         }), 401
+
+        is_active, msg = check_user_is_active(request.ci)
+        if not is_active:
+            return jsonify({
+                "success": False,
+                "description": msg
+            }), 403
         
         ci = request.ci
 
@@ -2101,6 +2322,13 @@ def getFinishedManagedReservations():
         
         ci = request.ci
 
+        is_active, msg = check_user_is_active(request.ci)
+        if not is_active:
+            return jsonify({
+                "success": False,
+                "description": msg
+            }), 403
+
         today = date.today().strftime("%Y-%m-%d")
 
         conn = connection()
@@ -2181,6 +2409,13 @@ def patchManageReservation():
         studyGroupId = data.get('studyGroupId')
         librarian = data.get('librarian')
 
+        is_active, msg = check_user_is_active(librarian)
+        if not is_active:
+            return jsonify({
+                "success": False,
+                "description": msg
+            }), 403
+
         if not all([studyGroupId, librarian]):
             cursor.close()
             conn.close()
@@ -2244,6 +2479,13 @@ def patchUnmanageReservation():
         studyGroupId = data.get('studyGroupId')
         librarian = data.get('librarian')
 
+        is_active, msg = check_user_is_active(librarian)
+        if not is_active:
+            return jsonify({
+                "success": False,
+                "description": msg
+            }), 403
+
         if not all([studyGroupId, librarian]):
             cursor.close()
             conn.close()
@@ -2293,6 +2535,13 @@ def getAllUserGroupRequests():
         conn = connection()
         cursor = conn.cursor()
         ci = request.ci
+
+        is_active, msg = check_user_is_active(request.ci)
+        if not is_active:
+            return jsonify({
+                "success": False,
+                "description": msg
+            }), 403
 
         cursor.execute('''
             SELECT 
@@ -2353,6 +2602,13 @@ def getAllGroups():
         conn = connection()
         cursor = conn.cursor()
         ci = request.ci
+
+        is_active, msg = check_user_is_active(request.ci)
+        if not is_active:
+            return jsonify({
+                "success": False,
+                "description": msg
+            }), 403
 
         cursor.execute(''' 
             SELECT
@@ -2427,6 +2683,12 @@ def deleteGroupById(groupId):
         cursor = conn.cursor()
         ci = request.ci
         groupId = int(groupId)
+        is_active, msg = check_user_is_active(request.ci)
+        if not is_active:
+            return jsonify({
+                "success": False,
+                "description": msg
+            }), 403
 
         cursor.execute(''' 
             SELECT sG.leader AS leader
@@ -2515,13 +2777,27 @@ def getGroupInformation(groupId):
         ci = request.ci
         groupId = int(groupId)
 
+        is_active, msg = check_user_is_active(request.ci)
+        if not is_active:
+            cursor.close()
+            return jsonify({
+                "success": False,
+                "description": msg
+            }), 403
+
+        # Chequear que el usuario (líder o miembro) esté en el grupo Y activo
         cursor.execute("""
             SELECT 1
             FROM studyGroup sg
             LEFT JOIN studyGroupParticipant sgp 
                 ON sg.studyGroupId = sgp.studyGroupId
+            LEFT JOIN user u_leader ON sg.leader = u_leader.ci
+            LEFT JOIN user u_member ON sgp.member = u_member.ci
             WHERE sg.studyGroupId = %s
-              AND (sg.leader = %s OR sgp.member = %s)
+              AND (
+                    (sg.leader = %s AND u_leader.isActive = TRUE)
+                 OR (sgp.member = %s AND u_member.isActive = TRUE)
+              )
         """, (groupId, ci, ci))
         result = cursor.fetchone()
 
@@ -2532,27 +2808,40 @@ def getGroupInformation(groupId):
                 'description': 'No eres miembro del grupo'
             }), 403
 
+        # Info del grupo, solo si el líder está activo
         cursor.execute("""
             SELECT 
                 sg.studyGroupId,
                 sg.studyGroupName,
                 sg.status,
                 u_leader.ci AS leaderCi,
-                u_leader.name,
-                u_leader.lastName
+                u_leader.name AS leaderName,
+                u_leader.lastName AS leaderLastName
             FROM studyGroup sg
-            JOIN user u_leader ON sg.leader = u_leader.ci
+            JOIN user u_leader 
+                ON sg.leader = u_leader.ci
+               AND u_leader.isActive = TRUE
             WHERE sg.studyGroupId = %s
         """, (groupId,))
         group_info = cursor.fetchone()
 
+        if not group_info:
+            cursor.close()
+            return jsonify({
+                'success': False,
+                'description': f'No se encontró el grupo con ID {groupId} o el líder está inactivo'
+            }), 404
+
+        # Miembros activos
         cursor.execute("""
             SELECT 
                 u.ci,
-                u.name
+                u.name,
                 u.lastName
             FROM studyGroupParticipant sgp
-            JOIN user u ON sgp.member = u.ci
+            JOIN user u 
+                ON sgp.member = u.ci
+               AND u.isActive = TRUE
             WHERE sgp.studyGroupId = %s
         """, (groupId,))
         members = cursor.fetchall()
@@ -2568,7 +2857,8 @@ def getGroupInformation(groupId):
                 'status': group_info['status'],
                 'leader': {
                     'ci': group_info['leaderCi'],
-                    'name': group_info['leaderName']
+                    'name': group_info['leaderName'],
+                    'lastName': group_info['leaderLastName'],
                 },
                 'members': members
             }
@@ -2581,6 +2871,7 @@ def getGroupInformation(groupId):
             'error': str(ex)
         }), 500
 
+
 @app.route('/leaveGroup/<groupId>', methods=['DELETE'])
 @token_required
 def leaveGroup(groupId):
@@ -2589,6 +2880,16 @@ def leaveGroup(groupId):
         cursor = conn.cursor()
         ci = request.ci
         groupId = int(groupId)
+
+        is_active, msg = check_user_is_active(request.ci)
+        if not is_active:
+            cursor.close()
+            return jsonify({
+                "success": False,
+                "description": msg
+            }), 403
+
+
 
         cursor.execute(''' 
             SELECT sG.leader AS leader
@@ -2637,6 +2938,15 @@ def getGroupInfo(groupId):
         ci = request.ci
         groupId = int(groupId)
 
+        is_active, msg = check_user_is_active(request.ci)
+        if not is_active:
+            cursor.close()
+            return jsonify({
+                "success": False,
+                "description": msg
+            }), 403
+
+        # Trae el grupo solo si el líder está activo
         cursor.execute("""
             SELECT 
                 sg.studyGroupId AS id,
@@ -2646,7 +2956,9 @@ def getGroupInfo(groupId):
                 leader.name AS leaderName,
                 leader.lastName AS leaderLastName
             FROM studyGroup sg
-            JOIN user leader ON sg.leader = leader.ci
+            JOIN user leader 
+                ON sg.leader = leader.ci
+               AND leader.isActive = TRUE
             WHERE sg.studyGroupId = %s
         """, (groupId,))
 
@@ -2657,13 +2969,16 @@ def getGroupInfo(groupId):
             conn.close()
             return jsonify({
                 "success": False,
-                "description": "Grupo no encontrado"
+                "description": "Grupo no encontrado o líder inactivo"
             }), 404
 
+        # Miembros activos únicamente
         cursor.execute("""
             SELECT u.ci, u.name, u.lastName
             FROM studyGroupParticipant sgp
-            JOIN user u ON sgp.member = u.ci
+            JOIN user u 
+                ON sgp.member = u.ci
+               AND u.isActive = TRUE
             WHERE sgp.studyGroupId = %s
             ORDER BY u.lastName, u.name
         """, (groupId,))
@@ -2733,6 +3048,7 @@ def getGroupInfo(groupId):
             "error": str(ex)
         }), 500
 
+
 # Aceptar una solicitud
 @app.route('/group/<groupId>/acceptRequest', methods=['PATCH'])
 @token_required
@@ -2748,6 +3064,15 @@ def acceptUserRequest(groupId):
         cursor = conn.cursor()
         ci = request.ci
         groupId = int(groupId)
+
+        is_active, msg = check_user_is_active(request.ci)
+        if not is_active:
+            cursor.close()
+            return jsonify({
+                "success": False,
+                "description": msg
+            }), 403
+
 
         cursor.execute("""SELECT COUNT(DISTINCT studyGroup.studyGroupId) AS cant
                 FROM studyGroup
@@ -2859,6 +3184,14 @@ def denyGroupRequest(groupId):
         ci = request.ci
         groupId = int(groupId)
 
+        is_active, msg = check_user_is_active(request.ci)
+        if not is_active:
+            cursor.close()
+            return jsonify({
+                "success": False,
+                "description": msg
+            }), 403
+
         cursor.execute(''' 
             UPDATE groupRequest
             SET status = 'Rechazada'
@@ -2893,6 +3226,7 @@ def deleteUserById(studyGroupId, userId):
         cursor = conn.cursor()
 
         ci_sender = request.ci
+
 
         cursor.execute("SELECT leader, status FROM studyGroup WHERE studyGroupId = %s", (studyGroupId,))
         result = cursor.fetchone()
@@ -2981,6 +3315,14 @@ def getUserbyCi():
         cursor = conn.cursor()
         result = None
 
+        is_active, msg = check_user_is_active(request.ci)
+        if not is_active:
+            cursor.close()
+            return jsonify({
+                "success": False,
+                "description": msg
+            }), 403
+
         if role == 'administrator':
             cursor.execute(
                 f"""
@@ -3056,8 +3398,18 @@ def searchUsersRequest():
         role = request.role
         current_ci = request.ci
 
+
+
         conn = connection()
         cursor = conn.cursor()
+
+        is_active, msg = check_user_is_active(request.ci)
+        if not is_active:
+            cursor.close()
+            return jsonify({
+                "success": False,
+                "description": msg
+            }), 403
 
         text = request.args.get("text", "").strip()
         search = f"%{text}%"
@@ -3124,6 +3476,8 @@ def searchUsersOutsideRequest():
         text = request.args.get("text", "").strip()
         group_id = request.args.get("groupId")
 
+
+
         if not group_id or not group_id.isdigit():
             return jsonify({
                 "success": False,
@@ -3136,6 +3490,14 @@ def searchUsersOutsideRequest():
 
         conn = connection()
         cursor = conn.cursor()
+
+        is_active, msg = check_user_is_active(request.ci)
+        if not is_active:
+            cursor.close()
+            return jsonify({
+                "success": False,
+                "description": msg
+            }), 403
 
         # USUARIOS QUE APARECEN SI SOS UN ESTUDIANTE
 
@@ -3255,6 +3617,8 @@ def createGroup():
         role = request.role
 
 
+
+
         if not nombre:
             return jsonify({
                 "success": False,
@@ -3263,6 +3627,14 @@ def createGroup():
 
         conn = connection()
         cursor = conn.cursor()
+
+        is_active, msg = check_user_is_active(request.ci)
+        if not is_active:
+            cursor.close()
+            return jsonify({
+                "success": False,
+                "description": msg
+            }), 403
         if role == 'student':
             cursor.execute("""
             SELECT COUNT(DISTINCT studyGroup.studyGroupId) AS cant
@@ -3329,6 +3701,14 @@ def getMyCareer():
         conn = connection()
         cursor = conn.cursor()
 
+        is_active, msg = check_user_is_active(request.ci)
+        if not is_active:
+            cursor.close()
+            return jsonify({
+                "success": False,
+                "description": msg
+            }), 403
+
         SQL = """
             SELECT 
                 c.careerName,
@@ -3392,6 +3772,8 @@ def patchUpdateDataUser():
         careerId = data.get('careerId')
         campus = data.get('campus')
         buildingName = data.get('buildingName')
+
+
 
         if not ci or not roles or not name or not lastName:
             return jsonify({'success': False, 'description': 'Faltan datos obligatorios'}), 400
