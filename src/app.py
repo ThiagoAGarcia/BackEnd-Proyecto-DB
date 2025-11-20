@@ -1928,13 +1928,11 @@ from datetime import date
 @token_required
 def getAvailableReservationsByDate():
     try:
-        """
         if not user_has_role("librarian"):
             return jsonify({
                 "success": False,
                 "description": "Usuario no autorizado",
             }), 401
-        """
 
         conn = connection()
         cursor = conn.cursor()
