@@ -13,6 +13,7 @@ CREATE TABLE user (
 	ci INT PRIMARY KEY,
 	name VARCHAR(32) NOT NULL CHECK ( CHAR_LENGTH(name) >= 3 ),
     lastName VARCHAR(32) NOT NULL CHECK ( CHAR_LENGTH(lastName) >= 3 ),
+    isActive BOOLEAN NOT NULL DEFAULT TRUE,
     mail VARCHAR(50) UNIQUE CHECK ( LOWER(mail) LIKE '%@correo.ucu.edu.uy' OR LOWER(mail) LIKE '%@ucu.edu.uy')
 );
 
@@ -160,7 +161,7 @@ INSERT INTO campus VALUES
 ('Punta del Este'),
 ('Salto');
 
-INSERT INTO user VALUES
+INSERT INTO user (ci, name, lastName, mail) VALUES
 (55897692, 'Agostina', 'Etchebarren', 'agostina.etchebarren@correo.ucu.edu.uy'),
 (55531973, 'Santiago', 'Aguerre', 'santiago.aguerre@correo.ucu.edu.uy'),
 (57004718, 'Thiago', 'Garcia', 'thiago.garcia@correo.ucu.edu.uy'),
