@@ -1331,12 +1331,12 @@ def roomShift(building, date, shiftId, roomId):
         cursor = conn.cursor()
 
         selected_date = datetime.strptime(date, "%Y-%m-%d").date()
-        today = (datetime.now(timezone.utc) + timedelta(days=1)).date()
+        today = datetime.now().date()
 
         if selected_date < today:
             return jsonify({
                 'success': False,
-                'description': 'No se puede elegir una fecha anterior a mañana'
+                'description': 'No se puede elegir una fecha del mismo dia o anterior'
             }), 400
 
         shiftId = None if shiftId == "null" or shiftId == "0" else shiftId
