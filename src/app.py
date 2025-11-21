@@ -2617,12 +2617,14 @@ def getAllGroups():
                 sg.status AS groupStatus,
                 leader.name AS leaderName,
                 leader.lastName AS leaderLastName,
-                leader.mail AS leaderMail
+                leader.mail AS leaderMail,
+                'leader' AS myRole
             FROM studyGroup sg
             JOIN user leader ON sg.leader = leader.ci
-            WHERE sg.leader = %s AND sg.status = 'Activo'
+            WHERE sg.leader = %s
+              AND sg.status = 'activo'
 
-            UNION ALL
+            UNION
 
             SELECT 
                 sg.studyGroupId AS id,
@@ -2630,12 +2632,15 @@ def getAllGroups():
                 sg.status AS groupStatus,
                 leader.name AS leaderName,
                 leader.lastName AS leaderLastName,
-                leader.mail AS leaderMail
+                leader.mail AS leaderMail,
+                'member' AS myRole
             FROM studyGroupParticipant sGp
             JOIN studyGroup sg ON sGp.studyGroupId = sg.studyGroupId
             JOIN user leader ON sg.leader = leader.ci 
-            WHERE sGp.member = %s AND sg.status = 'Activo';
-        ''', (ci, ci))
+            WHERE sGp.member = %s
+              AND sg.status = 'activo'
+              AND sg.leader <> %s;
+        ''', (ci, ci, ci))
 
         results = cursor.fetchall()
         if not results:
@@ -2652,7 +2657,8 @@ def getAllGroups():
                 'groupState': row['groupStatus'],
                 'leaderName': row['leaderName'],
                 'leaderLastName': row['leaderLastName'],
-                'leaderMail': row['leaderMail']
+                'leaderMail': row['leaderMail'],
+                'myRole': row['myRole']
             })
         cursor.close()
 
