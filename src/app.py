@@ -1,6 +1,6 @@
 from flask import Flask, jsonify, request
 from flask_cors import CORS
-from datetime import datetime, timedelta, timezone, date
+from datetime import datetime, timedelta, timezone
 import bcrypt
 import jwt
 from encrypt import hash_pwd
@@ -100,71 +100,7 @@ def check_user_is_active(ci):
 def pageNotFound(error):
     return "<h1>La página que buscas no existe.</h1>"
 
-# Actualizar el estado de las reservas de activa a finalizada
-@app.route('/updateReservationsFinished', methods=['PATCH'])
-@token_required
-def patchFinishedReservations():
-    try:
-        if not user_has_role("librarian"):
-            return jsonify({
-                "success": False,
-                "description": "Usuario no autorizado",
-            }), 401
-        
-        conn = connection()
-        cursor = conn.cursor()
 
-        gmt_minus_4 = timezone(timedelta(hours=-4))
-
-    # Create a datetime object with this timezone
-        specific_time = datetime(2025, 12, 25, 10, 0, 0, tzinfo=gmt_minus_4)
-        print(f"Specific time in GMT-4: {specific_time}")
-        
-        # Conseguir solo la hora actual
-        uyTimezone = timezone(timedelta(hours=-3))
-        datetimeNow = datetime.now(uyTimezone)
-        currentHour = datetimeNow.hour
-        endTime = f'{currentHour}:00'
-
-        # Conseguimos la fecha de las reservas a actualizar
-        today = datetimeNow.strftime("%Y-%m-%d")
-
-        # Conseguir el identificador del turno que acaba de finalizar
-        cursor.execute(''' 
-            SELECT s.shiftId AS shift
-            FROM shift s
-            WHERE s.endTime = %s;
-        ''', (endTime))
-
-        results = cursor.fetchone()
-
-        if not results:
-            return jsonify({
-                'success': False,
-                'description': 'La hora no coincide con ningún turno.'
-            }), 500
-        
-        shift = results['shift']
-
-        cursor.execute(''' 
-            UPDATE reservation
-            SET state = 'Finalizada'
-            WHERE reservation.shiftId = %s AND reservation.date = %s
-        ''', (shift, today))
-
-        conn.commit()
-
-        return jsonify({
-            'success': True,
-            'description': f'Las reservas de la hora {endTime} han finalizado {today}.'
-        })
-
-    except Exception as ex:
-        return jsonify({
-            'success': False,
-            'description': 'No se pudo procesar la solicitud.',
-            'error': str(ex)
-        }), 500
 
 
 # Conseguir todas las sanciones de un usuario por mail
@@ -343,7 +279,6 @@ def postNewSanction():
                 "success": False,
                 "description": msg
             }), 403
-        
         if not all([groupParticipantCi, librarianCi, description, startDate, endDate]):
             return jsonify({
                 'success': False,
@@ -366,7 +301,6 @@ def postNewSanction():
         ''', (groupParticipantCi, librarianCi, description, startDate, endDate))
         conn.commit()
         cursor.close()
-
         return jsonify({
             'success': True,
             'description': 'Sanción creada correctamente'
@@ -907,8 +841,6 @@ def getUserGroupRequest():
 
     except Exception as ex:
         return jsonify({'success' : False, 'description': str(ex)}), 404
-    
-
 # Registro de usuarios por administrador
 @app.route('/registerAdmin', methods=['POST'])
 @token_required
@@ -1275,7 +1207,8 @@ def postLogin():
             'description': 'Error en el login',
             'error': str(ex)
         }), 500
-    
+
+
 
 # Hacer una nueva reserva
 @app.route('/newReservation', methods=['POST'])
@@ -1380,111 +1313,8 @@ def newReservation():
             'description': 'Error en la creación de la reserva',
             'error': str(ex)
         }), 500
-    
-
-# Hacer una nueva reserva express
-@app.route('/newExpressReservation', methods=['POST'])
-@token_required
-def newReservation():
-    conn = None
-    cursor = None
-    try:
-        if not user_has_role("student", "professor"):
-            return jsonify({
-                "success": False,
-                "description": "Usuario no autorizado",
-            }), 401
-
-        data = request.get_json()
-        studyGroupId = data.get('studyGroupId')
-        studyRoomId = data.get('studyRoomId')
-        date = data.get('date')
-        shiftId = data.get('shiftId')
-        reservationCreateDate = datetime.now()
-        state = 'Activa'
-
-        if not all([studyGroupId, studyRoomId, date, shiftId]):
-            return jsonify({
-                'success': False,
-                'description': 'Faltan datos obligatorios'
-            }), 400
-
-        # Validar fecha futura
-        if datetime.strptime(date, "%Y-%m-%d").date() < datetime.now().date():
-            return jsonify({
-                'success': False,
-                'description': 'No se puede reservar para una fecha que ya pasó'
-            }), 400
-
-        conn = connection()
-        cursor = conn.cursor()
-
-        # Verificar que el grupo exista
-        cursor.execute(
-            "SELECT studyGroupId FROM studyGroup WHERE studyGroupId = %s",
-            (studyGroupId,)
-        )
-        result = cursor.fetchone()
-        if not result:
-            return jsonify({
-                'success': False,
-                'description': f'No se encontró el grupo \"{studyGroupId}\"'
-            }), 404
-
-        # Verificar que la sala exista
-        cursor.execute(
-            "SELECT studyRoomId FROM studyRoom WHERE studyRoomId = %s",
-            (studyRoomId,)
-        )
-        result = cursor.fetchone()
-        if not result:
-            return jsonify({
-                'success': False,
-                'description': f'No se encontró la sala \"{studyRoomId}\"'
-            }), 404
-
-        # Verificar que el turno exista
-        cursor.execute(
-            "SELECT shiftId FROM shift WHERE shiftId = %s",
-            (shiftId,)
-        )
-        result = cursor.fetchone()
-        if not result:
-            return jsonify({
-                'success': False,
-                'description': f'No se encontró el turno \"{shiftId}\"'
-            }), 404
-
-        # LIMPIAR USUARIOS INACTIVOS DEL GRUPO ANTES DE RESERVAR
-        cursor.execute("""
-            DELETE sgp
-            FROM studyGroupParticipant AS sgp
-            JOIN user u ON sgp.member = u.ci
-            WHERE sgp.studyGroupId = %s
-              AND u.isActive = FALSE
-        """, (studyGroupId,))
 
 
-        # Crear la reserva
-        cursor.execute("""
-            INSERT INTO reservation 
-                (studyGroupId, studyRoomId, date, shiftId, assignedLibrarian, reservationCreateDate, state)
-            VALUES (%s, %s, %s, %s, NULL, %s, %s)
-        """, (studyGroupId, studyRoomId, date, shiftId, reservationCreateDate.date(), state))
-
-        conn.commit()
-
-        return jsonify({
-            'success': True,
-            'description': 'Reservación creada exitosamente'
-        }), 201
-
-    except Exception as ex:
-        return jsonify({
-            'success': False,
-            'description': 'Error en la creación de la reserva',
-            'error': str(ex)
-        }), 500
 
 
 @app.route('/myGroup/<groupId>', methods=['GET'])
@@ -2306,6 +2136,7 @@ def getUserReservations():
     
 
 # Conseguir todas las reservas sin bibliotecario asignado en cierta fecha
+from datetime import date
 
 @app.route('/reservationsAvailableToday', methods=['GET'])
 @token_required
@@ -2330,8 +2161,7 @@ def getAvailableReservationsByDate():
                 sR.roomName AS studyRoomName,
                 sR.buildingName AS building,
                 r.studyGroupId AS studyGroupId,
-                r.assignedLibrarian AS librarian,
-                r.state AS state
+                r.assignedLibrarian AS librarian
             FROM reservation r
             JOIN shift s ON r.shiftId = s.shiftId
             JOIN studyRoom sR ON r.studyRoomId = sR.studyRoomId
@@ -2362,8 +2192,7 @@ def getAvailableReservationsByDate():
                 "studyRoom": row['studyRoomName'],
                 "building": row['building'],
                 "studyGroupId": row['studyGroupId'],
-                "assignedLibrarian": row['librarian'],
-                "state": row['state']
+                "assignedLibrarian": row['librarian']
             })
 
          # Esto es para cuando una reserva tiene dos bloques de horario
@@ -2393,6 +2222,7 @@ def getAvailableReservationsByDate():
 
     
 # Conseguir todas las reservas sin bibliotecario asignado en cierta fecha
+from datetime import date
 
 @app.route('/reservationsManagedToday', methods=['GET'])
 @token_required
@@ -2427,8 +2257,7 @@ def getManagedReservationsByDate():
                 sR.roomName   AS studyRoomName,
                 sR.buildingName AS building,
                 r.studyGroupId   AS studyGroupId,
-                r.assignedLibrarian AS librarian,
-                r.state AS state
+                r.assignedLibrarian AS librarian
             FROM reservation r
             JOIN shift s     ON r.shiftId = s.shiftId
             JOIN studyRoom sR ON r.studyRoomId = sR.studyRoomId
@@ -2449,8 +2278,7 @@ def getManagedReservationsByDate():
                     "studyRoom": row['studyRoomName'],
                     "building": row['building'],
                     "studyGroupId": row['studyGroupId'],
-                    "assignedLibrarian": row['librarian'],
-                    "state": row['state']
+                    "assignedLibrarian": row['librarian']
                 })
 
              # Esto es para cuando una reserva tiene dos bloques de horario
@@ -2467,7 +2295,7 @@ def getManagedReservationsByDate():
 
         return jsonify({
             'success': True,
-            'description': 'Reservas gestionadas el día de hoy.',
+            'description': 'Reservas el día de hoy',
             'reservations': reservations
         }), 200
 
@@ -2508,20 +2336,22 @@ def getFinishedManagedReservations():
 
         cursor.execute(
             ''' 
-                SELECT DATE_FORMAT(s.startTime, '%%H:%%i') AS start,
-                DATE_FORMAT(s.endTime, '%%H:%%i')   AS end,
-                sR.roomName                         AS studyRoomName,
-                sR.buildingName                     AS building,
-                r.studyGroupId                      AS studyGroupId,
-                r.assignedLibrarian                 AS librarian,
-                r.state                             AS state
-                FROM reservation r
-                    JOIN shift s ON r.shiftId = s.shiftId
-                    JOIN studyRoom sR ON r.studyRoomId = sR.studyRoomId
-                WHERE r.date = '2025-11-20'
-                AND r.assignedLibrarian = %s
-                AND r.state = 'Finalizada';
-            ''',(ci))
+            SELECT 
+                DATE_FORMAT(s.startTime, '%%H:%%i') AS start,
+                DATE_FORMAT(s.endTime,   '%%H:%%i') AS end,
+                sR.roomName   AS studyRoomName,
+                sR.buildingName AS building,
+                r.studyGroupId   AS studyGroupId,
+                r.assignedLibrarian AS librarian
+            FROM reservation r
+            JOIN shift s     ON r.shiftId = s.shiftId
+            JOIN studyRoom sR ON r.studyRoomId = sR.studyRoomId
+            WHERE r.date = %s
+              AND r.assignedLibrarian = %s
+              AND r.status = 'Finalizada';
+            ''',
+            (today, ci)
+        )
 
         results = cursor.fetchall()
         reservations = []
@@ -2534,8 +2364,7 @@ def getFinishedManagedReservations():
                     "studyRoom": row['studyRoomName'],
                     "building": row['building'],
                     "studyGroupId": row['studyGroupId'],
-                    "assignedLibrarian": row['librarian'],
-                    "state": row['state']
+                    "assignedLibrarian": row['librarian']
                 })
 
              # Esto es para cuando una reserva tiene dos bloques de horario
@@ -2552,7 +2381,7 @@ def getFinishedManagedReservations():
 
         return jsonify({
             'success': True,
-            'description': 'Reservas finalizadas el día de hoy.',
+            'description': 'Reservas el día de hoy',
             'reservations': reservations
         }), 200
 
@@ -3066,6 +2895,8 @@ def leaveGroup(groupId):
                 "description": msg
             }), 403
 
+
+
         cursor.execute(''' 
             SELECT sG.leader AS leader
             FROM studyGroup sG
@@ -3079,12 +2910,6 @@ def leaveGroup(groupId):
                 'success': False,
                 'description': 'No puedes abandonar un grupo del que eres líder'
             }), 401
-        
-        cursor.execute(''' 
-            DELETE FROM groupRequest
-            WHERE studyGroupId = %s AND receiver = %s;
-        ''', (groupId, ci))
-        conn.commit()
         
         cursor.execute(''' 
             DELETE FROM studyGroupParticipant sGP
@@ -3408,13 +3233,14 @@ def deleteUserById(studyGroupId, userId):
 
         ci_sender = request.ci
 
+
         cursor.execute("SELECT leader, status FROM studyGroup WHERE studyGroupId = %s", (studyGroupId,))
         result = cursor.fetchone()
 
         if not result:
             return jsonify({
                 "success": False,
-                "description": "El grupo no existe."
+                "description": "El grupo no existe"
             }), 404
 
         leader = result["leader"]
@@ -3441,14 +3267,8 @@ def deleteUserById(studyGroupId, userId):
         if not member:
             return jsonify({
                 "success": False,
-                "description": "El usuario no forma parte del grupo."
+                "description": "El usuario fue no encontrado en este grupo"
             }), 404
-        
-        cursor.execute(''' 
-            DELETE FROM groupRequest
-            WHERE studyGroupId = %s AND receiver = %s;
-        ''', (studyGroupId, userId))
-        conn.commit()
 
         cursor.execute("""
             DELETE FROM studyGroupParticipant
@@ -3803,6 +3623,9 @@ def createGroup():
         nombre = data.get("studyGroupName")
         leader_ci = request.ci
         role = request.role
+
+
+
 
         if not nombre:
             return jsonify({
@@ -4408,6 +4231,5 @@ def getPorcentajeReservasEfectivasYNoEfectivas():
     except Exception as ex:
         print("ERROR en /porcentajeReservasEfectivasYNoEfectivas:", ex)
         return jsonify({'description': 'Error', 'error': str(ex)}), 500
-    
 if __name__ == '__main__':
     app.register_error_handler(404, pageNotFound)
