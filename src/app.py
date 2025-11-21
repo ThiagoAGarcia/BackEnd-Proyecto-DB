@@ -1638,7 +1638,7 @@ def getUserByNameLastMail(name, lastName, mail):
         }), 500
 
 
-# Conseguir todas las salas libres en cierta fecha y edificio
+# Conseguir todas las salas (libres y ocupadas) en cierta fecha y edificio
 @app.route('/freeRooms/<building>&<date>', methods=['GET'])
 @token_required
 def getFreeRooms(building, date):
@@ -1648,59 +1648,59 @@ def getFreeRooms(building, date):
                 "success": False,
                 "description": "Usuario no autorizado",
             }), 401
-        
+
         conn = connection()
         cursor = conn.cursor()
-        
-        cursor.execute(''' 
+
+        cursor.execute('''
             SELECT 
-                sR.roomName AS Sala, 
-                sR.buildingName AS Edificio, 
+                sR.studyRoomId,
+                sR.roomName AS Sala,
+                sR.buildingName AS Edificio,
+                sR.capacity AS Capacidad,
+                s.shiftId,
                 DATE_FORMAT(s.startTime, '%%H:%%i') AS Inicio,
-                DATE_FORMAT(s.endTime, '%%H:%%i') AS Fin,
-                sR.capacity AS Capacidad
+                DATE_FORMAT(s.endTime, '%%H:%%i') AS Fin
             FROM studyRoom sR
             JOIN shift s
-            WHERE sR.buildingName = %s AND (sR.studyRoomId, s.shiftId) NOT IN (
-                SELECT r.studyRoomId, r.shiftId
-                FROM reservation r
-                WHERE r.date = %s
-            )
-            ORDER BY Inicio, Fin DESC;
-        ''', (building, date))
-        
-        results = cursor.fetchall()
+            WHERE sR.buildingName = %s
+            ORDER BY s.startTime;
+        ''', (building,))
 
-        if not results:
-            return jsonify({
-                'success': False,
-                'description': 'No se encontraron salas libres.'
-            }), 404
-        
-        freeRooms = []
+        allRooms = cursor.fetchall()
 
-        id = 0
-        for row in results:
-            freeRooms.append({
-                "studyRoom": row['Sala'],
-                "building": row['Edificio'],
-                "start": str(row['Inicio']),
-                "end": str(row['Fin']),
-                "date": str(date),
-                "capacity": row['Capacidad'],
-                "id": id
-            })
-            id = id + 1
+        cursor.execute('''
+            SELECT studyRoomId, shiftId
+            FROM reservation
+            WHERE date = %s;
+        ''', (date,))
+
+        reserved = cursor.fetchall()
+        reserved_set = {(r["studyRoomId"], r["shiftId"]) for r in reserved}
 
         cursor.close()
 
+        rooms = []
+        for row in allRooms:
+            is_reserved = (row["studyRoomId"], row["shiftId"]) in reserved_set
+
+            rooms.append({
+                "studyRoom": row['Sala'],
+                "building": row['Edificio'],
+                "start": row['Inicio'],
+                "end": row['Fin'],
+                "date": date,
+                "capacity": row['Capacidad'],
+                "status": "Ocupado" if is_reserved else "Disponible"
+            })
+
         return jsonify({
             'success': True,
-            'description': 'Salas libres.',
+            'description': 'Salas y sus estados.',
             'building': building,
-            'rooms': freeRooms
+            'rooms': rooms
         }), 200
-    
+
     except Exception as e:
         return jsonify({
             "success": False,
@@ -3884,14 +3884,15 @@ def getBuildings():
         conn = connection()
         cursor = conn.cursor()
 
-        cursor.execute("SELECT buildingName, address, campus FROM building")
+        cursor.execute("SELECT buildingName, address, campus, image FROM building")
         buildings = cursor.fetchall()
 
         buildings_list = [
             {
                 "buildingName": b["buildingName"],
                 "address": b["address"],
-                "campus": b["campus"]
+                "campus": b["campus"],
+                "image": b["image"]
             }
             for b in buildings
         ]
