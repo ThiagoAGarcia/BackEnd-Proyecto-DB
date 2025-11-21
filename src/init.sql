@@ -72,6 +72,7 @@ CREATE TABLE studyRoom (
 	buildingName VARCHAR(32),
 	capacity INT NOT NULL CHECK ( capacity > 0 ),
     roomType ENUM('Libre', 'Posgrado', 'Docente') DEFAULT 'Libre',
+    status ENUM('Activo', 'Inactivo') DEFAULT 'Activo',
 	FOREIGN KEY (buildingName) REFERENCES building(buildingName)
 );
 
@@ -250,24 +251,24 @@ INSERT INTO shift VALUES
 (NULL, '22:00:00', '23:00:00');
 
 INSERT INTO studyRoom VALUES
-(NULL, 'Sala 1', 'Central', 6, 'Libre'),
-(NULL, 'Sala 2', 'Central', 8, 'Posgrado'),
-(NULL, 'Sala 3', 'Central', 4, 'Docente'),
-(NULL, 'Sala 1', 'San Ignacio', 4, 'Libre'),
-(NULL, 'Sala 2', 'San Ignacio', 4, 'Posgrado'),
-(NULL, 'Sala 3', 'San Ignacio', 4, 'Docente'),
-(NULL, 'Sala 1', 'Mullin', 3, 'Libre'),
-(NULL, 'Sala 2', 'Mullin', 4, 'Posgrado'),
-(NULL, 'Sala 3', 'Mullin', 4, 'Docente'),
-(NULL, 'Sala 1', 'San José', 5, 'Libre'),
-(NULL, 'Sala 2', 'San José', 5, 'Posgrado'),
-(NULL, 'Sala 3', 'San José', 5, 'Docente'),
-(NULL, 'Sala 1', 'Semprún', 6, 'Libre'),
-(NULL, 'Sala 2', 'Semprún', 6, 'Posgrado'),
-(NULL, 'Sala 3', 'Semprún', 6, 'Docente'),
-(NULL, 'Sala 1', 'Athanasius', 5, 'Libre'),
-(NULL, 'Sala 2', 'Athanasius', 5, 'Posgrado'),
-(NULL, 'Sala 3', 'Athanasius', 5, 'Docente');
+(NULL, 'Sala 1', 'Central', 6, 'Libre', NULL),
+(NULL, 'Sala 2', 'Central', 8, 'Posgrado', NULL),
+(NULL, 'Sala 3', 'Central', 4, 'Docente', NULL),
+(NULL, 'Sala 1', 'San Ignacio', 4, 'Libre', NULL),
+(NULL, 'Sala 2', 'San Ignacio', 4, 'Posgrado', NULL),
+(NULL, 'Sala 3', 'San Ignacio', 4, 'Docente', NULL),
+(NULL, 'Sala 1', 'Mullin', 3, 'Libre', NULL),
+(NULL, 'Sala 2', 'Mullin', 4, 'Posgrado', NULL),
+(NULL, 'Sala 3', 'Mullin', 4, 'Docente', NULL),
+(NULL, 'Sala 1', 'San José', 5, 'Libre', NULL),
+(NULL, 'Sala 2', 'San José', 5, 'Posgrado', NULL),
+(NULL, 'Sala 3', 'San José', 5, 'Docente', NULL),
+(NULL, 'Sala 1', 'Semprún', 6, 'Libre', NULL),
+(NULL, 'Sala 2', 'Semprún', 6, 'Posgrado', NULL),
+(NULL, 'Sala 3', 'Semprún', 6, 'Docente', NULL),
+(NULL, 'Sala 1', 'Athanasius', 5, 'Libre', NULL),
+(NULL, 'Sala 2', 'Athanasius', 5, 'Posgrado', NULL),
+(NULL, 'Sala 3', 'Athanasius', 5, 'Docente', NULL);
 
 INSERT INTO studyGroup VALUES
 (NULL, 'Equipo Programación I', 'Inactivo', 55897692),
