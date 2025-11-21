@@ -3425,6 +3425,7 @@ def searchUsersRequest():
                 WHERE 
                     u.mail LIKE %s
                     AND u.ci <> %s
+                    AND u.isActive = TRUE
                 ORDER BY u.name ASC
             """, (search, current_ci))
 
@@ -3445,6 +3446,7 @@ def searchUsersRequest():
                     u.mail LIKE %s
                     AND u.ci <> %s
                     AND (s.ci IS NOT NULL OR p.ci IS NOT NULL)
+                    AND u.isActive = TRUE
                 ORDER BY u.name ASC
             """, (search, current_ci))
 
