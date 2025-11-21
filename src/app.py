@@ -282,13 +282,13 @@ def postNewSanction():
         if not all([groupParticipantCi, librarianCi, description, startDate, endDate]):
             return jsonify({
                 'success': False,
-                'description': 'Faltan datos obligatorios.'
+                'description': 'Faltan datos obligatorios'
             }), 400
         
         if description not in ['Comer', 'Ruidoso', 'Vandalismo', 'Imprudencia', 'Ocupar']:
             return jsonify({
                 'success': False,
-                'description': 'Descripción inválida.'
+                'description': 'Descripción inválida'
             }), 400
         
         conn = connection()
@@ -303,13 +303,13 @@ def postNewSanction():
         cursor.close()
         return jsonify({
             'success': True,
-            'description': 'Sanción creada correctamente.'
+            'description': 'Sanción creada correctamente'
         }), 200
     
     except Exception as ex:
         return jsonify({
             'success': False,
-            'description': 'No se pudo procesar la solicitud.',
+            'description': 'No se pudo procesar la solicitud',
             'error': str(ex)
         }), 500
 
@@ -399,7 +399,7 @@ def getUserByCareer(careerID):
         else:
             return jsonify({
                 'success': False,
-                'message': 'No existen usuarios para esa carrera.'
+                'message': 'No existen usuarios para esa carrera'
             }), 404
 
     except Exception as ex:
@@ -1351,7 +1351,7 @@ def getGroupUser(groupId):
             cursor.close()
             return jsonify({
                 'success': False,
-                'description': 'No eres miembro del grupo.'
+                'description': 'No eres miembro del grupo'
             }), 404
 
         cursor.execute("""
@@ -1515,7 +1515,7 @@ def sendGroupRequest():
         if sender_is_student and receiver_is_professor and not receiver_is_student:
             return jsonify({
                 'success': False,
-                'description': 'Un estudiante no puede enviarle una solicitud a un profesor "solo profesor".'
+                'description': 'Un estudiante no puede enviarle una solicitud a un profesor "solo profesor"'
             }), 400
 
         # ACÁ VERIFICA QUE UN MIEMBRO NO INVITE A GENTE RANDOM AL GRUPO DE ESTUDIO
@@ -1544,19 +1544,19 @@ def sendGroupRequest():
             if status == "Pendiente":
                 return jsonify({
                     "success": False,
-                    "description": "Ya se envió una solicitud a este usuario."
+                    "description": "Ya se envió una solicitud a este usuario"
                 }), 400
 
             if status == "Rechazada":
                 return jsonify({
                     "success": False,
-                    "description": "El usuario ya rechazó la solicitud y no puede ingresar al grupo."
+                    "description": "El usuario ya rechazó la solicitud y no puede ingresar al grupo"
                 }), 400
 
             if status == "Aceptada":
                 return jsonify({
                     "success": False,
-                    "description": "El integrante ya está en el grupo."
+                    "description": "El integrante ya está en el grupo"
                 }), 400
 
         cursor.execute("""
@@ -1626,14 +1626,14 @@ def getUserByNameLastMail(name, lastName, mail):
 
             return jsonify({
                 'success': True,
-                'description': 'Estudiante encontrado.',
+                'description': 'Estudiante encontrado',
                 'estudiante': estudiante
             })
 
     except Exception as ex:
         return jsonify({
             'success': False,
-            'description': 'Error al obtener usuario.',
+            'description': 'Error al obtener usuario',
             'error': str(ex)
         }), 500
 
@@ -1696,7 +1696,7 @@ def getFreeRooms(building, date):
 
         return jsonify({
             'success': True,
-            'description': 'Salas y sus estados.',
+            'description': 'Salas y sus estados',
             'building': building,
             'rooms': rooms
         }), 200
@@ -1704,7 +1704,7 @@ def getFreeRooms(building, date):
     except Exception as e:
         return jsonify({
             "success": False,
-            "description": "No se pudo procesar la solicitud.",
+            "description": "No se pudo procesar la solicitud",
             "error": str(e)
         }), 500
 
@@ -1888,7 +1888,7 @@ def roomShift(building, date, shiftId, roomId):
     except Exception as ex:
         return jsonify({
             'success': False,
-            'description': 'No se pudo procesar la solicitud.',
+            'description': 'No se pudo procesar la solicitud',
             'error': str(ex)
         }), 500
 
@@ -1911,7 +1911,7 @@ def getUserMailReservations(mail):
             if not user:
                 return jsonify({
                     "success": False,
-                    "description": "No se encontró un usuario con ese mail."
+                    "description": "No se encontró un usuario con ese mail"
                 }), 404
 
             ci = user["ci"]
@@ -2180,7 +2180,7 @@ def getAvailableReservationsByDate():
             conn.close()
             return jsonify({
                 'success': True,
-                'description': 'No hay reservas disponibles para hoy.',
+                'description': 'No hay reservas disponibles para hoy',
                 'reservations': []
             }), 200
 
@@ -2209,14 +2209,14 @@ def getAvailableReservationsByDate():
 
         return jsonify({
             'success': True,
-            'description': 'Reservas disponibles para hoy.',
+            'description': 'Reservas disponibles para hoy',
             'reservations': reservations
         }), 200
 
     except Exception as ex:
         return jsonify({
             'success': False,
-            'description': 'No se pudo procesar la solicitud.',
+            'description': 'No se pudo procesar la solicitud',
             'error': str(ex)
         }), 500
 
@@ -2295,7 +2295,7 @@ def getManagedReservationsByDate():
 
         return jsonify({
             'success': True,
-            'description': 'Reservas el día de hoy.',
+            'description': 'Reservas el día de hoy',
             'reservations': reservations
         }), 200
 
@@ -2303,7 +2303,7 @@ def getManagedReservationsByDate():
         print("ERROR en /reservationsManagedToday:", ex)
         return jsonify({
             'success': False,
-            'description': 'No se pudo procesar la solicitud.',
+            'description': 'No se pudo procesar la solicitud',
             'error': str(ex)
         }), 500
 
@@ -2381,7 +2381,7 @@ def getFinishedManagedReservations():
 
         return jsonify({
             'success': True,
-            'description': 'Reservas el día de hoy.',
+            'description': 'Reservas el día de hoy',
             'reservations': reservations
         }), 200
 
@@ -2389,7 +2389,7 @@ def getFinishedManagedReservations():
         print("ERROR en /reservationsManagedToday:", ex)
         return jsonify({
             'success': False,
-            'description': 'No se pudo procesar la solicitud.',
+            'description': 'No se pudo procesar la solicitud',
             'error': str(ex)
         }), 500
 
@@ -2451,7 +2451,7 @@ def patchManageReservation():
 
         return jsonify({
             'success': True,
-            'description': 'Nueva reserva administrada.',
+            'description': 'Nueva reserva administrada',
             "result": resultado
         }), 200
 
@@ -2462,7 +2462,7 @@ def patchManageReservation():
             pass
         return jsonify({
             'success': False,
-            'description': 'No se pudo procesar la solicitud.',
+            'description': 'No se pudo procesar la solicitud',
             'error': str(ex)
         }), 500
 
@@ -2506,7 +2506,7 @@ def patchUnmanageReservation():
 
         return jsonify({
             'success': True,
-            'description': 'Se dejó de administrar la reserva.'
+            'description': 'Se dejó de administrar la reserva'
         }), 200
 
     except Exception as ex:
@@ -2516,7 +2516,7 @@ def patchUnmanageReservation():
             pass
         return jsonify({
             'success': False,
-            'description': "No se pudo procesar la solicitud.",
+            'description': "No se pudo procesar la solicitud",
             'error': str(ex)
         }), 500
 
@@ -2576,14 +2576,14 @@ def getAllUserGroupRequests():
 
         return jsonify({
             'success': True,
-            'description': 'Solicitudes encontradas.',
+            'description': 'Solicitudes encontradas',
             'notificaciones': groupRequests
         })
 
     except Exception as ex:
         return jsonify({
             'success': False,
-            'description': 'No se pudieron encontrar las solicitudes.',
+            'description': 'No se pudieron encontrar las solicitudes',
             'error': str(ex)
         }), 500
 
@@ -2646,7 +2646,7 @@ def getAllGroups():
         if not results:
             return jsonify({
                 'success': False,
-                'description': 'No se pudieron encontrar los grupos.'
+                'description': 'No se pudieron encontrar los grupos'
             })
 
         groups = []
@@ -2664,7 +2664,7 @@ def getAllGroups():
 
         return jsonify({
             'success': True,
-            'description': 'Grupos encontrados.',
+            'description': 'Grupos encontrados',
             'grupos': groups
         })
     except Exception as ex:
@@ -2707,7 +2707,7 @@ def deleteGroupById(groupId):
         if ci != leaderCi:
             return jsonify({
                 'success': False,
-                'description': 'Solo se puede eliminar un grupo si eres el líder.'
+                'description': 'Solo se puede eliminar un grupo si eres el líder'
             }), 401
         
         cursor.execute(''' 
@@ -2752,7 +2752,7 @@ def deleteGroupById(groupId):
 
             return jsonify({
                 'success': True,
-                'description': 'El grupo se ha eliminado con éxito.'
+                'description': 'El grupo se ha eliminado con éxito'
             }), 200
         else:
             return jsonify({
@@ -2762,7 +2762,7 @@ def deleteGroupById(groupId):
     except Exception as ex:
         return jsonify({
             'success': False,
-            'description': 'No se ha podido eliminar el grupo.',
+            'description': 'No se ha podido eliminar el grupo',
             'error': str(ex)
         })
 
@@ -2873,7 +2873,7 @@ def getGroupInformation(groupId):
     except Exception as ex:
         return jsonify({
             'success': False,
-            'description': 'No se pudo obtener la información del grupo.',
+            'description': 'No se pudo obtener la información del grupo',
             'error': str(ex)
         }), 500
 
@@ -2908,7 +2908,7 @@ def leaveGroup(groupId):
         if ci == leaderCi:
             return jsonify({
                 'success': False,
-                'description': 'No puedes abandonar un grupo del que eres líder.'
+                'description': 'No puedes abandonar un grupo del que eres líder'
             }), 401
         
         cursor.execute(''' 
@@ -2920,13 +2920,13 @@ def leaveGroup(groupId):
 
         return jsonify({
             'success': True, 
-            'description': 'Has abandonado el grupo.'
+            'description': 'Has abandonado el grupo'
         }), 200
 
     except Exception as ex:
         return jsonify({
             'success': False,
-            'description': 'No se pudo procesar la solicitud.'
+            'description': 'No se pudo procesar la solicitud'
         }), 500
 @app.route('/group/<groupId>/info', methods=['GET'])
 @token_required
@@ -3050,7 +3050,7 @@ def getGroupInfo(groupId):
 
         return jsonify({
             "success": False,
-            "description": "No se pudo obtener la información del grupo.",
+            "description": "No se pudo obtener la información del grupo",
             "error": str(ex)
         }), 500
 
@@ -3143,7 +3143,7 @@ def acceptUserRequest(groupId):
             conn.close()
             return jsonify({
                 'success': False,
-                'description': 'No se encontró una solicitud pendiente para este grupo.'
+                'description': 'No se encontró una solicitud pendiente para este grupo'
             }), 404
 
         cursor.execute(''' 
@@ -3157,7 +3157,7 @@ def acceptUserRequest(groupId):
 
         return jsonify({
             'success': True,
-            'description': 'Se ha aceptado la solicitud.'
+            'description': 'Se ha aceptado la solicitud'
         }), 200
 
     except Exception as ex:
@@ -3168,7 +3168,7 @@ def acceptUserRequest(groupId):
 
         return jsonify({
             'success': False,
-            'description': 'No se pudo procesar la solicitud.',
+            'description': 'No se pudo procesar la solicitud',
             'error': str(ex)
         }), 500
 
@@ -3208,12 +3208,12 @@ def denyGroupRequest(groupId):
 
         return jsonify({
             'success': True,
-            'description': 'Se ha rechazado la solicitud.'
+            'description': 'Se ha rechazado la solicitud'
         })
     except Exception as ex:
         return jsonify({
             'success': False,
-            'description': 'No se pudo procesar la solicitud.'
+            'description': 'No se pudo procesar la solicitud'
         }), 500
 
 
@@ -3868,7 +3868,7 @@ def patchUpdateDataUser():
 
         return jsonify({
             'success': True,
-            'description': 'Usuario y roles actualizados correctamente.'
+            'description': 'Usuario y roles actualizados correctamente'
         }), 200
 
     except Exception as ex:
@@ -3879,7 +3879,7 @@ def patchUpdateDataUser():
 
         return jsonify({
             'success': False,
-            'description': 'Error interno.',
+            'description': 'Error interno',
             'error': str(ex)
         }), 500
 
