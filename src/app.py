@@ -3994,7 +3994,7 @@ def patchUpdateDataUser():
         campus = data.get('campus')
         buildingName = data.get('buildingName')
 
-        if ci == request.user['ci']:
+        if ci == request.ci:
             return jsonify({
                 'success': False,
                 'description': 'No podés modificar tus propios permisos o datos.'
