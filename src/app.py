@@ -3775,7 +3775,11 @@ def patchUpdateDataUser():
         campus = data.get('campus')
         buildingName = data.get('buildingName')
 
-
+        if ci == request.user['ci']:
+            return jsonify({
+                'success': False,
+                'description': 'No podés modificar tus propios permisos o datos.'
+            }), 403
 
         if not ci or not roles or not name or not lastName:
             return jsonify({'success': False, 'description': 'Faltan datos obligatorios'}), 400
@@ -3881,10 +3885,23 @@ def patchUpdateDataUser():
 @token_required
 def getBuildings():
     try:
+        if not user_has_role("student", "professor", "administrator"):
+            return jsonify({
+                "success": False,
+                "description": "Usuario no autorizado"
+            }), 401
+
+        role = request.role
+
         conn = connection()
         cursor = conn.cursor()
 
-        cursor.execute("SELECT buildingName, address, campus, image FROM building")
+        if role in ('student', 'professor'):
+            campus = request.campus
+            cursor.execute("SELECT buildingName, address, campus, image FROM building WHERE campus = %s", (campus,))
+        else:
+            cursor.execute("SELECT buildingName, address, campus, image FROM building")
+
         buildings = cursor.fetchall()
 
         buildings_list = [
