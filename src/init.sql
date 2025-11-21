@@ -5,8 +5,10 @@ SET NAMES utf8mb4;
 SET character_set_client = utf8mb4;
 SET character_set_connection = utf8mb4;
 SET character_set_results = utf8mb4;
+
 CREATE TABLE campus (
-    campusName VARCHAR(32) PRIMARY KEY CHECK ( CHAR_LENGTH(campusName) >= 5 )
+    campusName VARCHAR(32) PRIMARY KEY CHECK ( CHAR_LENGTH(campusName) >= 5 ),
+    image VARCHAR(300) DEFAULT 'https://www.fivebranches.edu/wp-content/uploads/2021/08/default-image.jpg'
 );
 
 CREATE TABLE user (
@@ -53,6 +55,7 @@ CREATE TABLE building (
 	buildingName VARCHAR(32) PRIMARY KEY,
 	address VARCHAR(32) NOT NULL,
 	campus VARCHAR(32) NOT NULL,
+    image VARCHAR(300) DEFAULT 'https://www.fivebranches.edu/wp-content/uploads/2021/08/default-image.jpg',
     FOREIGN KEY (campus) REFERENCES campus(campusName)
 );
 
@@ -157,9 +160,9 @@ CREATE TABLE sanction (
 /**** INSERTIONS ****/
 
 INSERT INTO campus VALUES
-('Montevideo'),
-('Punta del Este'),
-('Salto');
+('Montevideo', 'https://i.ytimg.com/vi/I2_PamgttyQ/maxresdefault.jpg'),
+('Punta del Este', 'https://www.ucu.edu.uy/imgnoticias/202411/H950/4798.jpg'),
+('Salto', 'https://www.ucu.edu.uy/imgnoticias/202304/H950/1626.jpg');
 
 INSERT INTO user (ci, name, lastName, mail) VALUES
 (55897692, 'Agostina', 'Etchebarren', 'agostina.etchebarren@correo.ucu.edu.uy'),
@@ -223,12 +226,12 @@ INSERT INTO login VALUES
 ('saul.esquivel@ucu.edu.uy', '$2b$16$XwajVoE75BbZUDEf0aFsKuWIkDMudlreTmQ2uH1yeq.z5vCbbNbSG'); -- agostina2006
 
 INSERT INTO building VALUES
-('Central', 'Av. 8 de Octubre 2738', 'Montevideo'),
-('San Ignacio', 'Cornelio Cantera 2731', 'Montevideo'),
-('Mullin', 'Cmdt. Braga 2745', 'Montevideo'),
-('San José', 'Av. 8 de Octubre 2733', 'Montevideo'),
-('Business School', 'Estero Bellaco 2771', 'Montevideo'),
-('Athanasius', 'Gral. Urquiza 2871', 'Montevideo');
+('Central', 'Av. 8 de Octubre 2738', 'Montevideo', 'https://pbs.twimg.com/media/ETCIXdTXQAEN2t8.jpg'),
+('San Ignacio', 'Cornelio Cantera 2731', 'Montevideo', 'https://www.ucu.edu.uy/imgnoticias/202304/W950_H580/1596.jpg'),
+('Mullin', 'Cmdt. Braga 2745', 'Montevideo', 'https://upload.wikimedia.org/wikipedia/commons/0/0b/EDIFICIO_MULLIN_UCU.jpg'),
+('San José', 'Av. 8 de Octubre 2733', 'Montevideo', 'https://medios.presidencia.gub.uy/tav_portal/2025/noticias/AN_361/fgr_01.jpg'),
+('Semprún', 'Estero Bellaco 2771', 'Montevideo', 'https://ciemsa.com.uy/wp-content/uploads/2022/09/37_ucu_1.jpeg'),
+('Athanasius', 'Gral. Urquiza 2871', 'Montevideo', 'https://www.ucu.edu.uy/imgnoticias/202208/H950/140.jpeg');
 
 INSERT INTO shift VALUES
 (NULL, '08:00:00', '09:00:00'),
@@ -259,9 +262,9 @@ INSERT INTO studyRoom VALUES
 (NULL, 'Sala 1', 'San José', 5, 'Libre'),
 (NULL, 'Sala 2', 'San José', 5, 'Posgrado'),
 (NULL, 'Sala 3', 'San José', 5, 'Docente'),
-(NULL, 'Sala 1', 'Business School', 6, 'Libre'),
-(NULL, 'Sala 2', 'Business School', 6, 'Posgrado'),
-(NULL, 'Sala 3', 'Business School', 6, 'Docente'),
+(NULL, 'Sala 1', 'Semprún', 6, 'Libre'),
+(NULL, 'Sala 2', 'Semprún', 6, 'Posgrado'),
+(NULL, 'Sala 3', 'Semprún', 6, 'Docente'),
 (NULL, 'Sala 1', 'Athanasius', 5, 'Libre'),
 (NULL, 'Sala 2', 'Athanasius', 5, 'Posgrado'),
 (NULL, 'Sala 3', 'Athanasius', 5, 'Docente');
