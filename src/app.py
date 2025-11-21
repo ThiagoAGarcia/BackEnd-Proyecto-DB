@@ -415,11 +415,6 @@ def getUserByCareer(careerID):
 @token_required
 def getUsers():
     try:
-        if not user_has_role("administrator"):
-            return jsonify({
-                "success": False,
-                "description": "Usuario no autorizado",
-            }), 401
         ciUser = request.ci
         conn = connection()
         cursor = conn.cursor()
