@@ -371,6 +371,144 @@ def createCareer():
             'error': str(ex)
         }), 500
 
+# Crear un nuevo studyRoom
+@app.route('/createStudyRoom', methods=['POST'])
+@token_required
+def createStudyRoom():
+    try:
+        if not user_has_role("administrator"):
+            return jsonify({
+                "success": False,
+                "description": "Usuario no autorizado",
+            }), 401
+
+        data = request.get_json()
+        roomName = data.get('roomName')
+        buildingName = data.get('buildingName')
+        capacity = data.get('capacity')
+        roomType = data.get('roomType')
+
+        if not all([roomName, buildingName, capacity, roomType]):
+            return jsonify({
+                'success': False,
+                'description': 'Faltan datos obligatorios'
+            }), 400
+
+        try:
+            capacity = int(capacity)
+        except:
+            return jsonify({
+                'success': False,
+                'description': 'La capacidad debe ser un número'
+            }), 400
+
+        if capacity <= 3:
+            return jsonify({
+                'success': False,
+                'description': 'La capacidad debe ser mayor a 3'
+            }), 400
+
+        if len(roomName.strip()) < 4:
+            return jsonify({'success': False, 'description': 'Nombre inválido, es muy corto'}), 400
+
+        conn = connection()
+        cursor = conn.cursor()
+
+        cursor.execute('''
+            INSERT INTO studyRoom (roomName, buildingName, capacity, roomType)
+            VALUES (%s, %s, %s, %s)
+        ''', (roomName, buildingName, capacity, roomType))
+
+        conn.commit()
+        cursor.close()
+
+        return jsonify({
+            'success': True,
+            'description': 'Sala creada correctamente'
+        }), 200
+
+    except Exception as ex:
+        return jsonify({
+            'success': False,
+            'description': 'No se pudo procesar la solicitud',
+            'error': str(ex)
+        }), 500
+
+
+# Actualizar Sala
+@app.route('/updateStudyRoom', methods=['PATCH'])
+@token_required
+def updateStudyRoom():
+    try:
+        if not user_has_role("administrator"):
+            return jsonify({
+                "success": False,
+                "description": "Usuario no autorizado",
+            }), 401
+
+        data = request.get_json()
+        studyRoomId = data.get('studyRoomId')
+        roomName = data.get('roomName')
+        buildingName = data.get('buildingName')
+        capacity = data.get('capacity')
+        roomType = data.get('roomType')
+
+        if not all([studyRoomId, roomName, buildingName, capacity, roomType]):
+            return jsonify({
+                'success': False,
+                'description': 'Faltan datos obligatorios'
+            }), 400
+
+        try:
+            capacity = int(capacity)
+        except:
+            return jsonify({
+                'success': False,
+                'description': 'La capacidad debe ser un número'
+            }), 400
+
+        if capacity <= 3:
+            return jsonify({
+                'success': False,
+                'description': 'La capacidad debe ser mayor a 3'
+            }), 400
+
+        if len(roomName.strip()) < 4:
+            return jsonify({'success': False, 'description': 'Nombre inválido, es muy corto'}), 400
+
+        conn = connection()
+        cursor = conn.cursor()
+
+        cursor.execute('''
+            UPDATE studyRoom
+            SET roomName = %s, buildingName = %s, capacity = %s, roomType = %s
+            WHERE studyRoomId = %s
+        ''', (roomName, buildingName, capacity, roomType, studyRoomId))
+
+        if cursor.rowcount == 0:
+            cursor.close()
+            return jsonify({
+                'success': False,
+                'description': 'No se encontró la sala para actualizar'
+            }), 404
+
+        conn.commit()
+        cursor.close()
+
+        return jsonify({
+            'success': True,
+            'description': 'Sala actualizada correctamente'
+        }), 200
+
+    except Exception as ex:
+        return jsonify({
+            'success': False,
+            'description': 'No se pudo procesar la solicitud',
+            'error': str(ex)
+        }), 500
+
+
+
 
 # Conseguir todos los usuarios que estudien cierta carrera
 @app.route('/user/<careerID>', methods=['GET'])
@@ -415,6 +553,11 @@ def getUserByCareer(careerID):
 @token_required
 def getUsers():
     try:
+        if not user_has_role("administrator"):
+            return jsonify({
+                "success": False,
+                "description": "Usuario no autorizado",
+            }), 401
         ciUser = request.ci
         conn = connection()
         cursor = conn.cursor()
@@ -1637,6 +1780,45 @@ def getUserByNameLastMail(name, lastName, mail):
             'error': str(ex)
         }), 500
 
+# Conseguir todas las salas para que las gestione el administrador
+@app.route('/rooms/<building>', methods=['GET'])
+@token_required
+def getRooms(building):
+    try:
+        if not user_has_role("administrator"):
+            return jsonify({
+                "success": False,
+                "description": "Usuario no autorizado",
+            }), 401
+
+        conn = connection()
+        cursor = conn.cursor()
+
+        cursor.execute('''
+            SELECT studyRoomId, roomName, buildingName, capacity, roomType
+            FROM studyRoom
+            WHERE buildingName = %s
+            ORDER BY roomName;
+        ''', (building,))
+
+        rooms = cursor.fetchall()
+
+        cursor.close()
+
+        return jsonify({
+            'success': True,
+            'description': 'Salas del edificio',
+            'building': building,
+            'rooms': rooms
+        }), 200
+
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "description": "No se pudo procesar la solicitud",
+            "error": str(e)
+        }), 500
+
 
 # Conseguir todas las salas (libres y ocupadas) en cierta fecha y edificio
 @app.route('/freeRooms/<building>&<date>', methods=['GET'])
@@ -1706,6 +1888,42 @@ def getFreeRooms(building, date):
             "success": False,
             "description": "No se pudo procesar la solicitud",
             "error": str(e)
+        }), 500
+
+# Conseguir todas las salas
+@app.route('/studyRooms', methods=['GET'])
+@token_required
+def getStudyRooms():
+    try:
+        if not user_has_role("administrator"):
+            return jsonify({
+                "success": False,
+                "description": "Usuario no autorizado",
+            }), 401
+
+        conn = connection()
+        cursor = conn.cursor()
+
+        cursor.execute('''
+            SELECT studyRoomId, roomName, buildingName, capacity, roomType
+            FROM studyRoom
+            ORDER BY buildingName, roomName
+        ''')
+
+        rooms = cursor.fetchall()
+        cursor.close()
+
+        return jsonify({
+            "success": True,
+            "description": "Lista de todas las salas",
+            "rooms": rooms
+        }), 200
+
+    except Exception as ex:
+        return jsonify({
+            "success": False,
+            "description": "Error al obtener las salas",
+            "error": str(ex)
         }), 500
 
 
@@ -3903,7 +4121,23 @@ def getBuildings():
         cursor = conn.cursor()
 
         if role in ('student', 'professor'):
-            campus = request.campus
+            ci = request.ci
+
+            if role == 'student':
+                cursor.execute("SELECT campus FROM student WHERE ci = %s", (ci,))
+            elif role == 'professor':
+                cursor.execute("SELECT campus FROM professor WHERE ci = %s", (ci,))
+
+            user_data = cursor.fetchone()
+
+            if not user_data:
+                return jsonify({
+                    "success": False,
+                    "description": "No se encontró el campus del usuario"
+                }), 500
+
+            campus = user_data["campus"]
+
             cursor.execute("SELECT buildingName, address, campus, image FROM building WHERE campus = %s", (campus,))
         else:
             cursor.execute("SELECT buildingName, address, campus, image FROM building")
