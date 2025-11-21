@@ -392,3 +392,69 @@ INSERT INTO groupRequest VALUES
 INSERT INTO sanction VALUES
 (NULL, 55531973, 32124436, 'Ruidoso', '2025-06-01', '2025-08-01'),
 (NULL, 56902752, 32124436, 'Ocupar', '2025-07-15', '2025-09-15');
+
+
+CREATE USER 'unknown_user'@'%' IDENTIFIED BY 'Unknown19976543!';
+CREATE USER 'student_user'@'%' IDENTIFIED BY 'Student19976543!';
+CREATE USER 'professor_user'@'%' IDENTIFIED BY 'Professor19976543!';
+CREATE USER 'administrator_user'@'%' IDENTIFIED BY 'Admin19976543!';
+CREATE USER 'librarian_user'@'%' IDENTIFIED BY 'Librarian19976543!';
+
+
+# GRANTS UNKNOWN
+GRANT INSERT ON ObligatorioBDD.login TO 'unknown_user'@'%';
+GRANT INSERT ON ObligatorioBDD.student TO 'unknown_user'@'%';
+GRANT INSERT ON ObligatorioBDD.user TO 'unknown_user'@'%';
+
+# GRANTS STUDENTS
+GRANT SELECT ON ObligatorioBDD.campus TO 'student_user'@'%';
+GRANT SELECT, UPDATE ON ObligatorioBDD.user TO 'student_user'@'%';
+GRANT SELECT ON ObligatorioBDD.faculty TO 'student_user'@'%';
+GRANT SELECT ON ObligatorioBDD.career TO 'student_user'@'%';
+GRANT SELECT, UPDATE ON ObligatorioBDD.login TO 'student_user'@'%';
+GRANT SELECT ON ObligatorioBDD.building TO 'student_user'@'%';
+GRANT SELECT ON ObligatorioBDD.shift TO 'student_user'@'%';
+GRANT SELECT ON ObligatorioBDD.studyroom TO 'student_user'@'%';
+GRANT INSERT, SELECT, UPDATE, DELETE ON ObligatorioBDD.studygroup TO 'student_user'@'%';
+GRANT ALL PRIVILEGES ON ObligatorioBDD.studyGroupParticipant TO 'student_user'@'%';
+GRANT SELECT ON ObligatorioBDD.student TO 'student_user'@'%';
+GRANT ALL PRIVILEGES ON ObligatorioBDD.reservation TO 'student_user'@'%';
+GRANT ALL PRIVILEGES ON ObligatorioBDD.groupRequest TO 'student_user'@'%';
+GRANT SELECT ON ObligatorioBDD.sanction TO 'student_user'@'%';
+
+# GRANTS PORFESSOR
+GRANT SELECT ON ObligatorioBDD.campus TO 'professor_user'@'%';
+GRANT SELECT, UPDATE ON ObligatorioBDD.user TO 'professor_user'@'%';
+GRANT SELECT ON ObligatorioBDD.faculty TO 'professor_user'@'%';
+GRANT SELECT ON ObligatorioBDD.career TO 'professor_user'@'%';
+GRANT SELECT, UPDATE ON ObligatorioBDD.login TO 'professor_user'@'%';
+GRANT SELECT ON ObligatorioBDD.building TO 'professor_user'@'%';
+GRANT SELECT ON ObligatorioBDD.shift TO 'professor_user'@'%';
+GRANT SELECT ON ObligatorioBDD.studyroom TO 'professor_user'@'%';
+GRANT INSERT, SELECT, UPDATE, DELETE ON ObligatorioBDD.studygroup TO 'professor_user'@'%';
+GRANT ALL PRIVILEGES ON ObligatorioBDD.studyGroupParticipant TO 'professor_user'@'%';
+GRANT SELECT ON ObligatorioBDD.user TO 'professor_user'@'%';
+GRANT SELECT ON ObligatorioBDD.professor TO 'professor_user'@'%';
+GRANT ALL PRIVILEGES ON ObligatorioBDD.reservation TO 'professor_user'@'%';
+GRANT ALL PRIVILEGES ON ObligatorioBDD.groupRequest TO 'professor_user'@'%';
+GRANT SELECT ON ObligatorioBDD.sanction TO 'professor_user'@'%';
+
+# GRANTS LIBRARIAN
+GRANT SELECT ON ObligatorioBDD.campus TO 'librarian_user'@'%';
+GRANT SELECT, UPDATE ON ObligatorioBDD.user TO 'librarian_user'@'%';
+GRANT SELECT ON ObligatorioBDD.career TO 'librarian_user'@'%';
+GRANT SELECT, UPDATE ON ObligatorioBDD.login TO 'librarian_user'@'%';
+GRANT SELECT ON ObligatorioBDD.building TO 'librarian_user'@'%';
+GRANT SELECT ON ObligatorioBDD.shift TO 'librarian_user'@'%';
+GRANT SELECT ON ObligatorioBDD.studyroom TO 'librarian_user'@'%';
+GRANT ALL PRIVILEGES ON ObligatorioBDD.studygroup TO 'librarian_user'@'%';
+GRANT ALL PRIVILEGES ON ObligatorioBDD.studyGroupParticipant TO 'librarian_user'@'%';
+GRANT SELECT ON ObligatorioBDD.user TO 'librarian_user'@'%';
+GRANT SELECT ON ObligatorioBDD.professor TO 'librarian_user'@'%';
+GRANT SELECT ON ObligatorioBDD.librarian TO 'librarian_user'@'%';
+GRANT ALL PRIVILEGES ON ObligatorioBDD.reservation TO 'librarian_user'@'%';
+GRANT ALL PRIVILEGES ON ObligatorioBDD.groupRequest TO 'librarian_user'@'%';
+GRANT ALL PRIVILEGES ON ObligatorioBDD.sanction TO 'librarian_user'@'%';
+
+# GRANTS ADMINISTRATOR
+GRANT ALL PRIVILEGES ON ObligatorioBDD.* TO 'librarian_user'@'%';
