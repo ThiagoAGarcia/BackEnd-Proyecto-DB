@@ -37,9 +37,17 @@ services:
       - '5000:5000'
     environment:
       MYSQL_HOST: db
-      MYSQL_USER: root
-      MYSQL_PASSWORD: root
       MYSQL_DB: ObligatorioBDD
+      MYSQL_UNKNOWN_USER: unknown_user
+      MYSQL_UNKNOWN_PASSWORD: Unknown19976543!
+      MYSQL_STUDENT_USER: student_user
+      MYSQL_STUDENT_PASSWORD: Student19976543!
+      MYSQL_PROFESSOR_USER: professor_user
+      MYSQL_PROFESSOR_PASSWORD: Professor19976543!
+      MYSQL_LIBRARIAN_USER: librarian_user
+      MYSQL_LIBRARIAN_PASSWORD: Librarian19976543!
+      MYSQL_ADMIN_USER: administrator_user
+      MYSQL_ADMIN_PASSWORD: Admin19976543!
       FLASK_ENV: development
       FLASK_APP: app.py
       # Locale y encoding en el contenedor

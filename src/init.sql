@@ -403,9 +403,14 @@ CREATE USER 'librarian_user'@'%' IDENTIFIED BY 'Librarian19976543!';
 
 
 # GRANTS UNKNOWN
-GRANT INSERT ON ObligatorioBDD.login TO 'unknown_user'@'%';
-GRANT INSERT ON ObligatorioBDD.student TO 'unknown_user'@'%';
-GRANT INSERT ON ObligatorioBDD.user TO 'unknown_user'@'%';
+GRANT INSERT, SELECT ON ObligatorioBDD.login TO 'unknown_user'@'%';
+GRANT INSERT, SELECT ON ObligatorioBDD.student TO 'unknown_user'@'%';
+GRANT SELECT ON ObligatorioBDD.professor TO 'unknown_user'@'%';
+GRANT SELECT ON ObligatorioBDD.librarian TO 'unknown_user'@'%';
+GRANT SELECT ON ObligatorioBDD.administrator TO 'unknown_user'@'%';
+GRANT INSERT, SELECT ON ObligatorioBDD.user TO 'unknown_user'@'%';
+GRANT SELECT ON ObligatorioBDD.campus TO 'unknown_user'@'%';
+GRANT SELECT ON ObligatorioBDD.career TO 'unknown_user'@'%';
 
 # GRANTS STUDENTS
 GRANT SELECT ON ObligatorioBDD.campus TO 'student_user'@'%';
@@ -458,4 +463,4 @@ GRANT ALL PRIVILEGES ON ObligatorioBDD.groupRequest TO 'librarian_user'@'%';
 GRANT ALL PRIVILEGES ON ObligatorioBDD.sanction TO 'librarian_user'@'%';
 
 # GRANTS ADMINISTRATOR
-GRANT ALL PRIVILEGES ON ObligatorioBDD.* TO 'librarian_user'@'%';
+GRANT ALL PRIVILEGES ON ObligatorioBDD.* TO 'administrator_user'@'%';

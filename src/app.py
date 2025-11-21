@@ -59,14 +59,23 @@ def token_required(f):
         try:
             data = jwt.decode(token, SECRET_KEY, algorithms=['HS256'])
 
-            request.role = data.get('role')
-            request.roles = data.get('roles', [request.role] if data.get('role') else [])
+
+            request.role = data.get('role', 'unknown')
+
+
+            request.roles = data.get(
+                'roles',
+                [request.role] if request.role else ['unknown']
+            )
+
             request.ci = data['ci']
+
         except jwt.ExpiredSignatureError:
             return jsonify({
                 'success': False,
                 'description': 'El token ha expirado'
             }), 401
+
         except jwt.InvalidTokenError:
             return jsonify({
                 'success': False,
@@ -76,8 +85,8 @@ def token_required(f):
         return f(*args, **kwargs)
     return decorated
 
-def check_user_is_active(ci):
-    conn = connection()
+def check_user_is_active(ci, role):
+    conn = connection(role)
     cursor = conn.cursor()
     try:
         cursor.execute("""
@@ -115,7 +124,7 @@ def getUserMailSanctions(mail):
                 "description": "Usuario no autorizado",
             }), 401
 
-        conn = connection()
+        conn = connection(request.role)
         cursor = conn.cursor()
         cursor.execute("""
             SELECT 
@@ -158,14 +167,14 @@ def getUserCiSanctions(ci):
                 "success": False,
                 "description": "Usuario no autorizado",
             }), 401
-        is_active, msg = check_user_is_active(ci)
+        is_active, msg = check_user_is_active(ci, request.role)
         if not is_active:
             return jsonify({
                 "success": False,
                 "description": msg
             }), 403
 
-        conn = connection()
+        conn = connection(request.role)
         cursor = conn.cursor()
         ci = int(ci)
 
@@ -210,7 +219,7 @@ def getMySanctions():
                 "description": "Usuario no autorizado",
             }), 401
 
-        conn = connection()
+        conn = connection(request.role)
         cursor = conn.cursor()
         ci = request.ci
 
@@ -266,14 +275,14 @@ def postNewSanction():
         startDate = data.get('startDate')
         endDate = data.get('endDate')
 
-        is_active, msg = check_user_is_active(groupParticipantCi)
+        is_active, msg = check_user_is_active(groupParticipantCi, request.role)
         if not is_active:
             return jsonify({
                 "success": False,
                 "description": msg
             }), 403
 
-        is_active, msg = check_user_is_active(librarianCi)
+        is_active, msg = check_user_is_active(librarianCi, request.role)
         if not is_active:
             return jsonify({
                 "success": False,
@@ -324,7 +333,7 @@ def createCareer():
                 "description": "Usuario no autorizado",
             }), 401
 
-        is_active, msg = check_user_is_active(request.ci)
+        is_active, msg = check_user_is_active(request.ci, request.role)
         if not is_active:
             return jsonify({
                 "success": False,
@@ -349,7 +358,7 @@ def createCareer():
                 'description': 'Tipo de carrera inválido'
             }), 400
 
-        conn = connection()
+        conn = connection(request.role)
         cursor = conn.cursor()
         cursor.execute(
             "INSERT INTO career (careerName, planYear, facultyId, type) VALUES (%s, %s, %s, %s)",
@@ -411,7 +420,7 @@ def createStudyRoom():
         if len(roomName.strip()) < 4:
             return jsonify({'success': False, 'description': 'Nombre inválido, es muy corto'}), 400
 
-        conn = connection()
+        conn = connection(request.role)
         cursor = conn.cursor()
 
         cursor.execute('''
@@ -476,7 +485,7 @@ def updateStudyRoom():
         if len(roomName.strip()) < 4:
             return jsonify({'success': False, 'description': 'Nombre inválido, es muy corto'}), 400
 
-        conn = connection()
+        conn = connection(request.role)
         cursor = conn.cursor()
 
         cursor.execute('''
@@ -513,7 +522,7 @@ def updateStudyRoom():
 @token_required
 def getUserByCareer(careerID):
     try:
-        conn = connection()
+        conn = connection(request.role)
         cursor = conn.cursor()
         SQL = """
             SELECT u.name, u.lastName
@@ -556,7 +565,7 @@ def getRooms(building):
                 "description": "Usuario no autorizado",
             }), 401
 
-        conn = connection()
+        conn = connection(request.role)
         cursor = conn.cursor()
 
         cursor.execute('''
@@ -596,7 +605,7 @@ def getUsers():
             }), 401
         
         ciUser = request.ci
-        conn = connection()
+        conn = connection(request.role)
         cursor = conn.cursor()
 
         cursor.execute('''
@@ -706,7 +715,7 @@ def deactivateUser(ci):
                 "description": "CI inválida"
             }), 400
 
-        conn = connection()
+        conn = connection(request.role)
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -994,10 +1003,10 @@ def postRegister():
 def getUserGroupRequest():
     try:
        ci = request.ci
-       conn = connection()
+       conn = connection(request.role)
        cursor = conn.cursor()
 
-       is_active, msg = check_user_is_active(request.ci)
+       is_active, msg = check_user_is_active(request.ci, request.role)
        if not is_active:
            return jsonify({
                "success": False,
@@ -1140,7 +1149,7 @@ def postRegisterAdmin():
                 'description': 'Debe seleccionar un edificio para el rol librarian'
             }), 400
 
-        conn = connection()
+        conn = connection(request.role)
         cursor = conn.cursor()
 
         # Verificar unicidad de ci y mail
@@ -1424,7 +1433,7 @@ def newReservation():
                 'description': 'No se puede reservar para una fecha que ya pasó'
             }), 400
 
-        conn = connection()
+        conn = connection(request.role)
         cursor = conn.cursor()
 
         # Verificar que el grupo exista
@@ -1507,7 +1516,7 @@ def getGroupUser(groupId):
                 "description": "Usuario no autorizado",
             }), 401
 
-        conn = connection()
+        conn = connection(request.role)
         cursor = conn.cursor()
         ci = request.ci
         groupId = int(groupId)
@@ -1618,14 +1627,14 @@ def sendGroupRequest():
         receiver = data.get('receiver')
         role = request.role
 
-        is_active, msg = check_user_is_active(ci_sender)
+        is_active, msg = check_user_is_active(ci_sender, request.role)
         if not is_active:
             return jsonify({
                 "success": False,
                 "description": msg
             }), 403
 
-        is_active, msg = check_user_is_active(receiver)
+        is_active, msg = check_user_is_active(receiver, request.role)
         if not is_active:
             return jsonify({
                 "success": False,
@@ -1638,7 +1647,7 @@ def sendGroupRequest():
                 'success': False,
                 'description': 'Faltan datos obligatorios'
             }), 400
-        conn = connection()
+        conn = connection(request.role)
         cursor = conn.cursor()
         if role == 'student':
             cursor.execute("""SELECT COUNT(DISTINCT studyGroup.studyGroupId) AS cant
@@ -1763,9 +1772,10 @@ def sendGroupRequest():
 
 # Conseguir usuarios por nombre, apellido o mail
 @app.route('/users/<name>&<lastName>&<mail>', methods=['GET'])
+@token_required
 def getUserByNameLastMail(name, lastName, mail):
     try:
-        conn = connection()
+        conn = connection(request.role)
         cursor = conn.cursor()
         name = str(name)
         lastName = str(lastName)
@@ -1828,7 +1838,7 @@ def getStudyRooms():
                 "description": "Usuario no autorizado",
             }), 401
 
-        conn = connection()
+        conn = connection(request.role)
         cursor = conn.cursor()
 
         cursor.execute('''
@@ -1865,7 +1875,7 @@ def getFreeRooms(building, date):
                 "description": "Usuario no autorizado",
             }), 401
 
-        conn = connection()
+        conn = connection(request.role)
         cursor = conn.cursor()
 
         cursor.execute('''
@@ -1936,7 +1946,7 @@ def roomShift(building, date, shiftId, roomId):
                 "description": "Usuario no autorizado",
             }), 401
 
-        conn = connection()
+        conn = connection(request.role)
         cursor = conn.cursor()
 
         selected_date = datetime.strptime(date, "%Y-%m-%d").date()
@@ -2118,8 +2128,8 @@ def getUserMailReservations(mail):
                 "success": False,
                 "description": "Usuario no autorizado",
             }), 401
-
-        with connection.cursor() as cursor:
+        conn = connection(request.role)
+        with conn.cursor() as cursor:
             query_user = "SELECT ci FROM user WHERE mail = %s AND isActive = TRUE"
             cursor.execute(query_user, (mail,))
             user = cursor.fetchone()
@@ -2132,7 +2142,7 @@ def getUserMailReservations(mail):
 
             ci = user["ci"]
 
-            is_active, msg = check_user_is_active(ci)
+            is_active, msg = check_user_is_active(ci, request.role)
             if not is_active:
                 return jsonify({
                     "success": False,
@@ -2198,10 +2208,10 @@ def getUserCiReservations():
     try:
         ci = int(request.ci)
 
-        conn = connection()
+        conn = connection(request.role)
         cursor = conn.cursor()
 
-        is_active, msg = check_user_is_active(request.ci)
+        is_active, msg = check_user_is_active(request.ci, request.role)
         if not is_active:
             return jsonify({
                 "success": False,
@@ -2292,13 +2302,14 @@ def getUserReservations():
 
         ci = request.ci
 
-        is_active, msg = check_user_is_active(request.ci)
+        is_active, msg = check_user_is_active(request.ci, request.role)
         if not is_active:
             return jsonify({
                 "success": False,
                 "description": msg
             }), 403
-        with connection.cursor() as cursor:
+        conn = connection(request.role)
+        with conn.cursor() as cursor:
             query_groups = """
                 SELECT DISTINCT studyGroup.studyGroupId, studyGroup.studyGroupName
                 FROM studyGroup
@@ -2364,7 +2375,7 @@ def getAvailableReservationsByDate():
                 "description": "Usuario no autorizado",
             }), 401
 
-        conn = connection()
+        conn = connection(request.role)
         cursor = conn.cursor()
 
         today = date.today().strftime("%Y-%m-%d")
@@ -2451,7 +2462,7 @@ def getManagedReservationsByDate():
                 "description": "Usuario no autorizado",
         }), 401
 
-        is_active, msg = check_user_is_active(request.ci)
+        is_active, msg = check_user_is_active(request.ci, request.role)
         if not is_active:
             return jsonify({
                 "success": False,
@@ -2462,7 +2473,7 @@ def getManagedReservationsByDate():
 
         today = date.today().strftime("%Y-%m-%d")
 
-        conn = connection()
+        conn = connection(request.role)
         cursor = conn.cursor()
 
         cursor.execute(
@@ -2538,7 +2549,7 @@ def getFinishedManagedReservations():
         
         ci = request.ci
 
-        is_active, msg = check_user_is_active(request.ci)
+        is_active, msg = check_user_is_active(request.ci, request.role)
         if not is_active:
             return jsonify({
                 "success": False,
@@ -2547,7 +2558,7 @@ def getFinishedManagedReservations():
 
         today = date.today().strftime("%Y-%m-%d")
 
-        conn = connection()
+        conn = connection(request.role)
         cursor = conn.cursor()
 
         cursor.execute(
@@ -2618,14 +2629,14 @@ def patchManageReservation():
         if not user_has_role("librarian"):
             return jsonify({'success': False, 'Description': 'unauthorized'}), 401
 
-        conn = connection()
+        conn = connection(request.role)
         cursor = conn.cursor()
 
         data = request.get_json()
         studyGroupId = data.get('studyGroupId')
         librarian = data.get('librarian')
 
-        is_active, msg = check_user_is_active(librarian)
+        is_active, msg = check_user_is_active(librarian, request.role)
         if not is_active:
             return jsonify({
                 "success": False,
@@ -2688,14 +2699,14 @@ def patchManageReservation():
 @token_required
 def patchUnmanageReservation():
     try:
-        conn = connection()
+        conn = connection(request.role)
         cursor = conn.cursor()
 
         data = request.get_json()
         studyGroupId = data.get('studyGroupId')
         librarian = data.get('librarian')
 
-        is_active, msg = check_user_is_active(librarian)
+        is_active, msg = check_user_is_active(librarian, request.role)
         if not is_active:
             return jsonify({
                 "success": False,
@@ -2748,11 +2759,11 @@ def getAllUserGroupRequests():
                 "description": "Usuario no autorizado",
             }), 401
 
-        conn = connection()
+        conn = connection(request.role)
         cursor = conn.cursor()
         ci = request.ci
 
-        is_active, msg = check_user_is_active(request.ci)
+        is_active, msg = check_user_is_active(request.ci, request.role)
         if not is_active:
             return jsonify({
                 "success": False,
@@ -2815,11 +2826,11 @@ def getAllGroups():
                 "description": "Usuario no autorizado",
             }), 401
 
-        conn = connection()
+        conn = connection(request.role)
         cursor = conn.cursor()
         ci = request.ci
 
-        is_active, msg = check_user_is_active(request.ci)
+        is_active, msg = check_user_is_active(request.ci, request.role)
         if not is_active:
             return jsonify({
                 "success": False,
@@ -2901,11 +2912,11 @@ def deleteGroupById(groupId):
                 "description": "Usuario no autorizado",
             }), 401
 
-        conn = connection()
+        conn = connection(request.role)
         cursor = conn.cursor()
         ci = request.ci
         groupId = int(groupId)
-        is_active, msg = check_user_is_active(request.ci)
+        is_active, msg = check_user_is_active(request.ci, request.role)
         if not is_active:
             return jsonify({
                 "success": False,
@@ -2994,12 +3005,12 @@ def getGroupInformation(groupId):
                 "description": "Usuario no autorizado",
             }), 401
 
-        conn = connection()
+        conn = connection(request.role)
         cursor = conn.cursor()
         ci = request.ci
         groupId = int(groupId)
 
-        is_active, msg = check_user_is_active(request.ci)
+        is_active, msg = check_user_is_active(request.ci, request.role)
         if not is_active:
             cursor.close()
             return jsonify({
@@ -3098,12 +3109,12 @@ def getGroupInformation(groupId):
 @token_required
 def leaveGroup(groupId):
     try:
-        conn = connection()
+        conn = connection(request.role)
         cursor = conn.cursor()
         ci = request.ci
         groupId = int(groupId)
 
-        is_active, msg = check_user_is_active(request.ci)
+        is_active, msg = check_user_is_active(request.ci, request.role)
         if not is_active:
             cursor.close()
             return jsonify({
@@ -3154,13 +3165,13 @@ def getGroupInfo(groupId):
                 "description": "Usuario no autorizado",
             }), 401
 
-        conn = connection()
+        conn = connection(request.role)
         cursor = conn.cursor()
 
         ci = request.ci
         groupId = int(groupId)
 
-        is_active, msg = check_user_is_active(request.ci)
+        is_active, msg = check_user_is_active(request.ci, request.role)
         if not is_active:
             cursor.close()
             return jsonify({
@@ -3282,12 +3293,12 @@ def acceptUserRequest(groupId):
                 "description": "Usuario no autorizado",
             }), 401
 
-        conn = connection()
+        conn = connection(request.role)
         cursor = conn.cursor()
         ci = request.ci
         groupId = int(groupId)
 
-        is_active, msg = check_user_is_active(request.ci)
+        is_active, msg = check_user_is_active(request.ci, request.role)
         if not is_active:
             cursor.close()
             return jsonify({
@@ -3401,12 +3412,12 @@ def denyGroupRequest(groupId):
                 "description": "Usuario no autorizado",
             }), 401
 
-        conn = connection()
+        conn = connection(request.role)
         cursor = conn.cursor()
         ci = request.ci
         groupId = int(groupId)
 
-        is_active, msg = check_user_is_active(request.ci)
+        is_active, msg = check_user_is_active(request.ci, request.role)
         if not is_active:
             cursor.close()
             return jsonify({
@@ -3444,7 +3455,7 @@ def deleteUserById(studyGroupId, userId):
                 "description": "Usuario no autorizado",
             }), 401
 
-        conn = connection()
+        conn = connection(request.role)
         cursor = conn.cursor()
 
         ci_sender = request.ci
@@ -3533,11 +3544,11 @@ def getUserbyCi():
     try:
         role = request.role
         ci = request.ci
-        conn = connection()
+        conn = connection(request.role)
         cursor = conn.cursor()
         result = None
 
-        is_active, msg = check_user_is_active(request.ci)
+        is_active, msg = check_user_is_active(request.ci, request.role)
         if not is_active:
             cursor.close()
             return jsonify({
@@ -3622,10 +3633,10 @@ def searchUsersRequest():
 
 
 
-        conn = connection()
+        conn = connection(request.role)
         cursor = conn.cursor()
 
-        is_active, msg = check_user_is_active(request.ci)
+        is_active, msg = check_user_is_active(request.ci, request.role)
         if not is_active:
             cursor.close()
             return jsonify({
@@ -3712,10 +3723,10 @@ def searchUsersOutsideRequest():
 
         search = f"%{text}%"
 
-        conn = connection()
+        conn = connection(request.role)
         cursor = conn.cursor()
 
-        is_active, msg = check_user_is_active(request.ci)
+        is_active, msg = check_user_is_active(request.ci, request.role)
         if not is_active:
             cursor.close()
             return jsonify({
@@ -3846,10 +3857,10 @@ def createGroup():
                 "description": "El nombre del grupo es obligatorio"
             }), 400
 
-        conn = connection()
+        conn = connection(request.role)
         cursor = conn.cursor()
 
-        is_active, msg = check_user_is_active(request.ci)
+        is_active, msg = check_user_is_active(request.ci, request.role)
         if not is_active:
             cursor.close()
             return jsonify({
@@ -3919,10 +3930,10 @@ def getMyCareer():
 
         ci = request.ci
 
-        conn = connection()
+        conn = connection(request.role)
         cursor = conn.cursor()
 
-        is_active, msg = check_user_is_active(request.ci)
+        is_active, msg = check_user_is_active(request.ci, request.role)
         if not is_active:
             cursor.close()
             return jsonify({
@@ -3981,7 +3992,7 @@ def patchUpdateDataUser():
         if not user_has_role("administrator"):
             return jsonify({'success': False, 'Description': 'unauthorized'}), 401
 
-        conn = connection()
+        conn = connection(request.role)
         cursor = conn.cursor()
 
         data = request.get_json()
@@ -4112,7 +4123,7 @@ def getBuildings():
 
         role = request.role
 
-        conn = connection()
+        conn = connection(request.role)
         cursor = conn.cursor()
 
         if role in ('student', 'professor'):
@@ -4173,7 +4184,7 @@ def getSalasMasReservadas():
                 "success": False,
                 "description": "Usuario no autorizado",
             }), 401
-        conn = connection()
+        conn = connection(request.role)
         cursor = conn.cursor()
 
 
@@ -4204,7 +4215,7 @@ def getTurnosMasDemandados():
                 "description": "Usuario no autorizado",
             }), 401
 
-        conn = connection()
+        conn = connection(request.role)
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -4254,7 +4265,7 @@ def getPromedioParticipantesPorSala():
                 "description": "Usuario no autorizado",
             }), 401
 
-        conn = connection()
+        conn = connection(request.role)
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -4294,7 +4305,7 @@ def getReservasPorCarreraYFacultad():
                 "description": "Usuario no autorizado",
             }), 401
 
-        conn = connection()
+        conn = connection(request.role)
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -4331,7 +4342,7 @@ def getPorcentajeOcupacionPorEdificio():
                 "description": "Usuario no autorizado",
             }), 401
 
-        conn = connection()
+        conn = connection(request.role)
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -4372,7 +4383,7 @@ def getCantidadReservasAlumnosYProfesores():
                 "description": "Usuario no autorizado",
             }), 401
 
-        conn = connection()
+        conn = connection(request.role)
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -4403,7 +4414,7 @@ def getSancionesProfesoresYAlumnos():
                 "description": "Usuario no autorizado",
             }), 401
 
-        conn = connection()
+        conn = connection(request.role)
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -4439,7 +4450,7 @@ def getPorcentajeReservasEfectivasYNoEfectivas():
                 "description": "Usuario no autorizado",
             }), 401
 
-        conn = connection()
+        conn = connection(request.role)
         cursor = conn.cursor()
 
         cursor.execute("""
