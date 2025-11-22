@@ -209,20 +209,20 @@ INSERT INTO career VALUES
 
 INSERT INTO login VALUES
 ('agostina.etchebarren@correo.ucu.edu.uy', '$2b$16$XwajVoE75BbZUDEf0aFsKuWIkDMudlreTmQ2uH1yeq.z5vCbbNbSG'), -- agostina2006
-('santiago.aguerre@correo.ucu.edu.uy', '$2b$16$g1LkX1b/Q8QV0h4m9LvSOuqN77ak.dwMt9fklaE0oS6Rtt0oIjqs6'), -- plantasvszombies2011
-('thiago.garcia@correo.ucu.edu.uy', '$2b$16$nXiuO/Rk15D99cm.9hGND.dEaUyN1amFq45eAzsMSoTlO/GnaFICa'), -- levimicasita02
-('martina.caetano@correo.ucu.edu.uy', '$2b$16$j7yjwqN5JbIXOlpcgAsr4.cCTCPDc8HVqg8DT1YmAlrS7g6.sAHNy'), -- toyotaCorolla1998
-('pilar.antelo@correo.ucu.edu.uy', '$2b$16$NBH8ENQgGtzpuybu.vSQmeHf8UNcDE2ozxXL8xr81Bnx02AVQ0vuK'), -- 90resultadosRedondos
-('facundo.piriz@correo.ucu.edu.uy', '$2b$16$jdYuxJsD1k7UJjXze16UI.R1Wvy5Qsd6x.TilvKcxU0cbvPj29x.y'), -- minasElMejorDepartamento
-('diego.deoliveira@correo.ucu.edu.uy', '$2b$16$mNpGG3LnBI8sJKOOxSQ9jurTyhU8DP/hP.D.fpFc/jOXlBzPw0crC'), -- pan&ciruela
-('santiago.blanco@correo.ucu.edu.uy', '$2b$16$VPfzjORnNTkE5t47w8bLgOCzIuo4q/psU6nR6id5PWKRqu7C4ORzu'), -- 10111010011
-('lucia.mallada@correo.ucu.edu.uy', '$2b$16$f4fiDRwV4pzVg32oRXwYDeX/10BKpi1Qu5F4RsGoeCe65d4WI0w6a'), -- jshs8294mjdns999
-('luana.biurarrena@correo.ucu.edu.uy', '$2b$16$QGBIR05MMT5.CFZ1O/54FeVd4QFRne7Ryu6KARSSnhRa24M5GpGCO'), -- ajdcn765cks1123
-('ramiro.casco@correo.ucu.edu.uy', '$2b$16$ZZ.XYYaIqRvEm2fg4uvII.7qoFrhYWcS5XqidOWETnikSfQlGMAPW'), -- lush8888
-('lourdes.machado@ucu.edu.uy', '$2b$16$/nHWUxWZBEx3J/yArDj/NeVt4W23DSyZo84tbblKz1ay6/hLPAsXC'), -- jupiter1974
-('david.liesegang@ucu.edu.uy', '$2b$16$w9m5XPNPUVKRR1VhJ/WXs.yEUkv3seWC2e0vXCqhz9O2HM/iqB.dm'), -- chocolate1972
-('rodrigo.diaz@ucu.edu.uy', '$2b$16$nKUf5sdg1McD0/EKWb2PtebGsSKg8O9jK6.vt7VgD04tC6WQg0IcW'), -- soyUnNPC2333
-('martha.lauria@ucu.edu.uy', '$2b$16$YiUwdugvAyxbHtmq4qRE4ewN/xHJTPnj7WDv9eHnIR57GJzwzaEjO'), -- iAmGoingToKillBill
+('santiago.aguerre@correo.ucu.edu.uy', '$2b$16$XwajVoE75BbZUDEf0aFsKuWIkDMudlreTmQ2uH1yeq.z5vCbbNbSG'), -- agostina2006
+('thiago.garcia@correo.ucu.edu.uy', '$2b$16$XwajVoE75BbZUDEf0aFsKuWIkDMudlreTmQ2uH1yeq.z5vCbbNbSG'), -- agostina2006
+('martina.caetano@correo.ucu.edu.uy', '$2b$16$XwajVoE75BbZUDEf0aFsKuWIkDMudlreTmQ2uH1yeq.z5vCbbNbSG'), -- agostina2006
+('pilar.antelo@correo.ucu.edu.uy', '$2b$16$XwajVoE75BbZUDEf0aFsKuWIkDMudlreTmQ2uH1yeq.z5vCbbNbSG'), -- agostina2006
+('facundo.piriz@correo.ucu.edu.uy', '$2b$16$XwajVoE75BbZUDEf0aFsKuWIkDMudlreTmQ2uH1yeq.z5vCbbNbSG'), -- agostina2006
+('diego.deoliveira@correo.ucu.edu.uy', '$2b$16$XwajVoE75BbZUDEf0aFsKuWIkDMudlreTmQ2uH1yeq.z5vCbbNbSG'), -- agostina2006
+('santiago.blanco@correo.ucu.edu.uy', '$2b$16$XwajVoE75BbZUDEf0aFsKuWIkDMudlreTmQ2uH1yeq.z5vCbbNbSG'), -- agostina2006
+('lucia.mallada@correo.ucu.edu.uy', '$2b$16$XwajVoE75BbZUDEf0aFsKuWIkDMudlreTmQ2uH1yeq.z5vCbbNbSG'), -- agostina2006
+('luana.biurarrena@correo.ucu.edu.uy', '$2b$16$XwajVoE75BbZUDEf0aFsKuWIkDMudlreTmQ2uH1yeq.z5vCbbNbSG'), -- agostina2006
+('ramiro.casco@correo.ucu.edu.uy', '$2b$16$XwajVoE75BbZUDEf0aFsKuWIkDMudlreTmQ2uH1yeq.z5vCbbNbSG'), -- agostina2006
+('lourdes.machado@ucu.edu.uy', '$2b$16$XwajVoE75BbZUDEf0aFsKuWIkDMudlreTmQ2uH1yeq.z5vCbbNbSG'), -- agostina2006
+('david.liesegang@ucu.edu.uy', '$2b$16$XwajVoE75BbZUDEf0aFsKuWIkDMudlreTmQ2uH1yeq.z5vCbbNbSG'), -- agostina2006
+('rodrigo.diaz@ucu.edu.uy', '$2b$16$XwajVoE75BbZUDEf0aFsKuWIkDMudlreTmQ2uH1yeq.z5vCbbNbSG'), -- agostina2006
+('martha.lauria@ucu.edu.uy', '$2b$16$XwajVoE75BbZUDEf0aFsKuWIkDMudlreTmQ2uH1yeq.z5vCbbNbSG'), -- agostina2006
 ('veronica.posadas@ucu.edu.uy', '$2b$16$XwajVoE75BbZUDEf0aFsKuWIkDMudlreTmQ2uH1yeq.z5vCbbNbSG'), -- agostina2006
 ('saul.esquivel@ucu.edu.uy', '$2b$16$XwajVoE75BbZUDEf0aFsKuWIkDMudlreTmQ2uH1yeq.z5vCbbNbSG'); -- agostina2006
 

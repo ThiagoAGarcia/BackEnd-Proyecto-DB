@@ -4118,8 +4118,6 @@ def searchUsersOutsideRequest():
         text = request.args.get("text", "").strip()
         group_id = request.args.get("groupId")
 
-
-
         if not group_id or not group_id.isdigit():
             return jsonify({
                 "success": False,
@@ -4142,38 +4140,70 @@ def searchUsersOutsideRequest():
             }), 403
 
         # USUARIOS QUE APARECEN SI SOS UN ESTUDIANTE
-
         if role == 'student':
             cursor.execute("""
                 SELECT u.ci, u.name, u.lastName, u.mail
                 FROM user u 
                 INNER JOIN student s ON u.ci = s.ci
-                WHERE u.mail LIKE %s AND u.ci != %s AND u.ci NOT IN (
-                      SELECT member FROM studyGroupParticipant WHERE studyGroupId = %s
-                ) AND u.ci NOT IN (
-                SELECT receiver FROM groupRequest WHERE studyGroupId = %s AND status = 'Rechazada'
-                )
+                WHERE u.mail LIKE %s
+                  AND u.ci != %s
+                  -- no mostrar a quien ya pertenece al grupo (líder o miembro)
+                  AND u.ci NOT IN (
+                      SELECT leader
+                      FROM studyGroup
+                      WHERE studyGroupId = %s
+                  )
+                  AND u.ci NOT IN (
+                      SELECT member
+                      FROM studyGroupParticipant
+                      WHERE studyGroupId = %s
+                  )
+                  -- no mostrar a quien ya tuvo solicitud rechazada
+                  AND u.ci NOT IN (
+                      SELECT receiver
+                      FROM groupRequest
+                      WHERE studyGroupId = %s AND status = 'Rechazada'
+                  )
                 ORDER BY u.name ASC
-            """, (search, current_ci, group_id, group_id))
+            """, (search, current_ci, group_id, group_id, group_id))
 
         # USUARIOS QUE APARECEN SI SOS UN PROFESOR
-
         if role == 'professor':
             cursor.execute("""
-            SELECT u.ci, u.name, u.lastName, u.mail,
-            CASE WHEN s.ci IS NOT NULL THEN 'student' WHEN p.ci IS NOT NULL THEN 'professor' 
-            END AS role
-            FROM user u
-            LEFT JOIN student s ON u.ci = s.ci
-            LEFT JOIN professor p ON u.ci = p.ci
-            WHERE u.mail LIKE %s AND u.ci != %s AND (s.ci IS NOT NULL OR p.ci IS NOT NULL) AND u.ci NOT IN (
-                SELECT member FROM studyGroupParticipant WHERE studyGroupId = %s
-            )
-            AND u.ci NOT IN (
-                SELECT receiver FROM groupRequest WHERE studyGroupId = %s AND status = 'Rechazada'
-            )
-            ORDER BY u.name ASC
-        """, (search, current_ci, group_id, group_id))
+                SELECT 
+                    u.ci, 
+                    u.name, 
+                    u.lastName, 
+                    u.mail,
+                    CASE 
+                        WHEN s.ci IS NOT NULL THEN 'student' 
+                        WHEN p.ci IS NOT NULL THEN 'professor' 
+                    END AS role
+                FROM user u
+                LEFT JOIN student s ON u.ci = s.ci
+                LEFT JOIN professor p ON u.ci = p.ci
+                WHERE u.mail LIKE %s
+                  AND u.ci != %s
+                  AND (s.ci IS NOT NULL OR p.ci IS NOT NULL)
+                  -- no mostrar a quien ya pertenece al grupo (líder o miembro)
+                  AND u.ci NOT IN (
+                      SELECT leader
+                      FROM studyGroup
+                      WHERE studyGroupId = %s
+                  )
+                  AND u.ci NOT IN (
+                      SELECT member
+                      FROM studyGroupParticipant
+                      WHERE studyGroupId = %s
+                  )
+                  -- no mostrar a quien ya tuvo solicitud rechazada
+                  AND u.ci NOT IN (
+                      SELECT receiver
+                      FROM groupRequest
+                      WHERE studyGroupId = %s
+                  )
+                ORDER BY u.name ASC
+            """, (search, current_ci, group_id, group_id, group_id))
 
         users = cursor.fetchall()
         cursor.close()
@@ -4185,6 +4215,7 @@ def searchUsersOutsideRequest():
 
     except Exception as ex:
         return jsonify({'success': False, 'description': 'Error', 'error': str(ex)}), 500
+
 
 @app.route('/switchRole', methods=['POST'])
 @token_required
