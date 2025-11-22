@@ -1612,6 +1612,267 @@ def newReservation():
             'description': 'Error en la creación de la reserva',
             'error': str(ex)
         }), 500
+@app.route('/getAllGroups', methods=['GET'])
+@token_required
+def getGroups():
+
+    try:
+        if not user_has_role("librarian"):
+            return jsonify({
+                "success": False,
+                "description": "Usuario no autorizado",
+            }), 401
+
+        text = request.args.get("text", "").strip()
+
+        conn = connection(request.role)
+        cursor = conn.cursor()
+
+        if text:
+            search = f"%{text}%"
+            cursor.execute("""
+                SELECT sg.studyGroupId,
+                       sg.studyGroupName,
+                       sg.status,
+                       u.name,
+                       u.lastName
+                FROM studyGroup sg
+                JOIN user u ON sg.leader = u.ci
+                WHERE sg.studyGroupName LIKE %s and sg.status = 'activo'
+                ORDER BY sg.studyGroupName
+            """, (search,))
+        else:
+            cursor.execute("""
+                SELECT sg.studyGroupId,
+                       sg.studyGroupName,
+                       sg.status,
+                       u.name,
+                       u.lastName
+                FROM studyGroup sg
+                JOIN user u ON sg.leader = u.ci
+                WHERE sg.status = 'activo'
+                ORDER BY sg.studyGroupName
+            """)
+
+        rows = cursor.fetchall()
+
+        groups = []
+        for r in rows:
+            groups.append({
+                "studyGroupId": r["studyGroupId"],
+                "studyGroupName": r["studyGroupName"],
+                "status": r["status"],
+                "leaderName": f'{r["name"]} {r["lastName"]}',
+            })
+
+        return jsonify({
+            "success": True,
+            "description": "Grupos obtenidos correctamente",
+            "groups": groups,
+        }), 200
+
+    except Exception as ex:
+        return jsonify({
+            "success": False,
+            "description": "Error al obtener grupos",
+            "error": str(ex),
+        }), 500
+
+@app.route('/newReservationExpress', methods=['POST'])
+@token_required
+def newReservationExpress():
+    try:
+        if not user_has_role("librarian"):
+            return jsonify({
+                "success": False,
+                "description": "Usuario no autorizado",
+            }), 401
+
+        data = request.get_json()
+        studyGroupId = data.get('studyGroupId')
+        studyRoomId = data.get('studyRoomId')
+        shiftId = data.get('shiftId')
+
+        today = datetime.now().date()
+
+        if not all([studyGroupId, studyRoomId, shiftId]):
+            return jsonify({
+                'success': False,
+                'description': 'Faltan datos obligatorios'
+            }), 400
+
+        conn = connection(request.role)
+        cursor = conn.cursor()
+
+        # edificio del bibliotecario
+        cursor.execute(
+            "SELECT buildingName FROM librarian WHERE ci = %s",
+            (request.ci,)
+        )
+        lib_row = cursor.fetchone()
+        if not lib_row or not lib_row['buildingName']:
+            return jsonify({
+                'success': False,
+                'description': 'No se encontró edificio asignado al bibliotecario'
+            }), 403
+
+        librarian_building = lib_row['buildingName']
+
+        # grupo
+        cursor.execute(
+            "SELECT studyGroupId, status FROM studyGroup WHERE studyGroupId = %s",
+            (studyGroupId,)
+        )
+        result = cursor.fetchone()
+        if not result:
+            return jsonify({
+                'success': False,
+                'description': f'No se encontró el grupo \"{studyGroupId}\"'
+            }), 404
+
+        if result['status'] != 'Activo':
+            return jsonify({
+                'success': False,
+                'description': 'No se puede hacer una reserva con un grupo inactivo'
+            }), 400
+
+
+        cursor.execute("""
+            SELECT studyRoomId, status, buildingName
+            FROM studyRoom
+            WHERE studyRoomId = %s
+        """, (studyRoomId,))
+        room_row = cursor.fetchone()
+        if not room_row:
+            return jsonify({
+                'success': False,
+                'description': f'No se encontró la sala \"{studyRoomId}\"'
+            }), 404
+
+        if room_row['status'] != 'Activo':
+            return jsonify({
+                'success': False,
+                'description': 'No se puede hacer una reserva con una sala inactiva'
+            }), 400
+
+        if room_row['buildingName'] != librarian_building:
+            return jsonify({
+                'success': False,
+                'description': 'Solo puedes reservar salas de tu propio edificio'
+            }), 403
+
+        cursor.execute(
+            "SELECT shiftId FROM shift WHERE shiftId = %s",
+            (shiftId,)
+        )
+        result = cursor.fetchone()
+        if not result:
+            return jsonify({
+                'success': False,
+                'description': f'No se encontró el turno \"{shiftId}\"'
+            }), 404
+
+        cursor.execute("""
+            SELECT *
+            FROM reservation
+            WHERE studyRoomId = %s
+              AND date = %s
+              AND shiftId = %s
+              AND state = 'Activa'
+        """, (studyRoomId, today, shiftId))
+
+        occupied = cursor.fetchone()
+
+        if occupied:
+            return jsonify({
+                'success': False,
+                'description': 'El turno ya está ocupado para esa sala hoy'
+            }), 400
+
+        cursor.execute("""
+            SELECT *
+            FROM reservation
+            WHERE studyGroupId = %s
+              AND state = 'Activa'
+        """, (studyGroupId,))
+
+        existing_group_res = cursor.fetchone()
+
+        if existing_group_res:
+            return jsonify({
+                'success': False,
+                'description': 'El grupo ya tiene una reserva activa'
+            }), 400
+
+        cursor.execute("""
+            DELETE sgp
+            FROM studyGroupParticipant AS sgp
+            JOIN user u ON sgp.member = u.ci
+            WHERE sgp.studyGroupId = %s
+              AND u.isActive = FALSE
+        """, (studyGroupId,))
+
+        cursor.execute("""
+            SELECT u.ci, u.name, u.lastName
+            FROM studyGroup sg
+            JOIN user u ON sg.leader = u.ci
+            WHERE sg.studyGroupId = %s
+        """, (studyGroupId,))
+        users = []
+        leader_row = cursor.fetchone()
+        if leader_row:
+            users.append(leader_row)
+
+        cursor.execute("""
+            SELECT u.ci, u.name, u.lastName
+            FROM studyGroupParticipant sgp
+            JOIN user u ON sgp.member = u.ci
+            WHERE sgp.studyGroupId = %s
+        """, (studyGroupId,))
+        members = cursor.fetchall()
+        if members:
+            users.extend(members)
+
+        for user_row in users:
+            user_ci = user_row['ci']
+            cursor.execute("""
+                SELECT COUNT(DISTINCT CONCAT(r.date, '-', r.studyRoomId, '-', r.shiftId)) AS cant
+                FROM reservation r
+                JOIN studyGroup sg ON r.studyGroupId = sg.studyGroupId
+                LEFT JOIN studyGroupParticipant sgp ON sg.studyGroupId = sgp.studyGroupId
+                WHERE (sg.leader = %s OR sgp.member = %s)
+                  AND r.state = 'Activa'
+                  AND YEARWEEK(r.date, 1) = YEARWEEK(%s, 1)
+            """, (user_ci, user_ci, today))
+            cant_row = cursor.fetchone()
+            cant = cant_row['cant'] if cant_row and cant_row['cant'] is not None else 0
+
+            if cant >= 3:
+                return jsonify({
+                    'success': False,
+                    'description': f'La persona {user_row["name"]} {user_row["lastName"]} ya tiene 3 reservas activas esta semana'
+                }), 400
+        cursor.execute(f"""
+            INSERT INTO reservation 
+                (studyGroupId, studyRoomId, date, shiftId, assignedLibrarian)
+            VALUES (%s, %s, %s, %s, null)
+        """, (studyGroupId, studyRoomId, today, shiftId))
+
+        conn.commit()
+        conn.close()
+        return jsonify({
+            'success': True,
+            'description': 'Reserva express creada exitosamente'
+        }), 201
+
+    except Exception as ex:
+        return jsonify({
+            'success': False,
+            'description': 'Error en la creación de la reserva express',
+            'error': str(ex)
+        }), 500
+
+
 
 
 @app.route('/myGroup/<groupId>', methods=['GET'])
@@ -2237,6 +2498,234 @@ def roomShift(building, date, shiftId, roomId):
             }), 200
 
     except Exception as ex:
+        return jsonify({
+            'success': False,
+            'description': 'No se pudo procesar la solicitud',
+            'error': str(ex)
+        }), 500
+
+@app.route('/roomShiftToday/<shiftId>&<roomId>', methods=['GET'])
+@token_required
+def roomShiftToday(shiftId, roomId):
+    conn = None
+    cursor = None
+    try:
+        if not user_has_role("librarian"):
+            return jsonify({
+                "success": False,
+                "description": "Usuario no autorizado",
+            }), 401
+
+        conn = connection(request.role)
+        cursor = conn.cursor()
+
+        today = datetime.now().date()
+
+        cursor.execute(
+            "SELECT buildingName FROM librarian WHERE ci = %s",
+            (request.ci,)
+        )
+        lib_row = cursor.fetchone()
+        if not lib_row or not lib_row['buildingName']:
+            cursor.close()
+            return jsonify({
+                'success': False,
+                'description': 'No se encontró edificio asignado al bibliotecario'
+            }), 403
+
+        building = lib_row['buildingName']
+
+
+        shiftId = None if shiftId in ("null", "0", "undefined") else shiftId
+        roomId = None if roomId in ("null", "0", "undefined") else roomId
+
+
+        if not shiftId and not roomId:
+            cursor.execute('''
+                SELECT sR.roomName AS Sala, sR.capacity AS Capacidad, sR.studyRoomId AS SalaId
+                FROM studyRoom sR
+                WHERE sR.buildingName = %s 
+                  AND sR.status = 'Activo' 
+                  AND EXISTS (
+                    SELECT *
+                    FROM shift sh
+                    WHERE sh.startTime > CURTIME()
+                      AND sh.shiftId NOT IN (
+                        SELECT r.shiftId
+                        FROM reservation r
+                        WHERE r.date = %s AND r.studyRoomId = sR.studyRoomId
+                    )
+                )
+                ORDER BY Sala
+            ''', (building, today))
+
+            salas_libres = cursor.fetchall()
+
+            cursor.execute('''
+                SELECT s.shiftId, DATE_FORMAT(s.startTime, '%%H:%%i') AS Inicio, DATE_FORMAT(s.endTime, '%%H:%%i') AS Fin
+                FROM shift s
+                WHERE s.startTime > CURTIME()
+                  AND EXISTS (
+                    SELECT *
+                    FROM studyRoom sr
+                    WHERE sr.buildingName = %s 
+                      AND sr.status = 'Activo' 
+                      AND sr.studyRoomId NOT IN (
+                        SELECT r.studyRoomId
+                        FROM reservation r
+                        WHERE r.date = %s AND r.shiftId = s.shiftId
+                    )
+                )
+                ORDER BY Inicio
+            ''', (building, today))
+
+            turnos_libres = cursor.fetchall()
+
+            cursor.close()
+
+            return jsonify({
+                "success": True,
+                "description": "Salas y turnos libres para hoy",
+                "salas": [{
+                    "roomId": r["SalaId"],
+                    "roomName": r["Sala"],
+                    "capacity": r["Capacidad"]
+                } for r in salas_libres],
+                "turnos": [{
+                    "shiftId": s["shiftId"],
+                    "start": s["Inicio"],
+                    "end": s["Fin"]
+                } for s in turnos_libres]
+            }), 200
+
+        if shiftId and not roomId:
+            cursor.execute('''
+                SELECT s.startTime 
+                FROM shift s
+                WHERE s.shiftId = %s
+            ''', (shiftId,))
+            shift_row = cursor.fetchone()
+            if not shift_row:
+                cursor.close()
+                return jsonify({
+                    "success": False,
+                    "description": f"No se encontró el turno \"{shiftId}\""
+                }), 404
+
+            cursor.execute('''
+                SELECT sR.roomName AS Sala, sR.capacity AS Capacidad, sR.studyRoomId AS SalaId
+                FROM studyRoom sR
+                WHERE sR.buildingName = %s 
+                  AND sR.status = 'Activo' 
+                  AND sR.studyRoomId NOT IN (
+                    SELECT r.studyRoomId
+                    FROM reservation r
+                    WHERE r.date = %s AND r.shiftId = %s
+                )
+                ORDER BY Sala
+            ''', (building, today, shiftId))
+
+            salas = cursor.fetchall()
+            cursor.close()
+
+            return jsonify({
+                "success": True,
+                "salas": [{
+                    "roomId": r["SalaId"],
+                    "roomName": r["Sala"],
+                    "capacity": r["Capacidad"]
+                } for r in salas],
+            }), 200
+
+
+        if roomId and not shiftId:
+            cursor.execute('''
+                SELECT s.shiftId, DATE_FORMAT(s.startTime, '%%H:%%i') AS Inicio, DATE_FORMAT(s.endTime, '%%H:%%i') AS Fin
+                FROM shift s
+                WHERE s.startTime > CURTIME()
+                  AND s.shiftId NOT IN (
+                    SELECT r.shiftId
+                    FROM reservation r
+                    JOIN studyRoom sr ON sr.studyRoomId = r.studyRoomId
+                    WHERE r.date = %s 
+                      AND sr.studyRoomId = %s 
+                      AND sr.status = 'Activo' 
+                )
+                ORDER BY Inicio
+            ''', (today, roomId))
+
+            turnos = cursor.fetchall()
+            cursor.close()
+
+            return jsonify({
+                "success": True,
+                "turnos": [{
+                    "shiftId": r["shiftId"],
+                    "start": r["Inicio"],
+                    "end": r["Fin"]
+                } for r in turnos]
+            }), 200
+
+
+        if shiftId and roomId:
+            cursor.execute('''
+                SELECT s.startTime 
+                FROM shift s
+                WHERE s.shiftId = %s
+                  AND s.startTime > CURTIME()
+            ''', (shiftId,))
+            shift_row = cursor.fetchone()
+            if not shift_row:
+                cursor.close()
+                return jsonify({
+                    "success": False,
+                    "description": "El turno seleccionado ya pasó o no existe"
+                }), 400
+
+            cursor.execute('''
+                SELECT sR.roomName AS Sala, sR.capacity AS Capacidad, sR.studyRoomId AS SalaId
+                FROM studyRoom sR
+                WHERE sR.buildingName = %s 
+                  AND sR.studyRoomId = %s 
+                  AND sR.status = 'Activo' 
+                  AND sR.studyRoomId NOT IN (
+                    SELECT r.studyRoomId
+                    FROM reservation r
+                    WHERE r.date = %s AND r.shiftId = %s
+                )
+            ''', (building, roomId, today, shiftId))
+
+            sala = cursor.fetchone()
+
+            turno = None
+            if sala:
+                cursor.execute('''
+                    SELECT s.shiftId, DATE_FORMAT(s.startTime, '%%H:%%i') AS Inicio, DATE_FORMAT(s.endTime, '%%H:%%i') AS Fin
+                    FROM shift s
+                    WHERE s.shiftId = %s
+                ''', (shiftId,))
+                turno = cursor.fetchone()
+
+            cursor.close()
+
+            return jsonify({
+                "success": True,
+                "description": "Salas y turnos libres para hoy",
+                "salas": [{
+                    "roomId": sala["SalaId"],
+                    "roomName": sala["Sala"],
+                    "capacity": sala["Capacidad"]
+                }] if sala else [],
+                "turnos": [{
+                    "shiftId": turno["shiftId"],
+                    "start": turno["Inicio"],
+                    "end": turno["Fin"]
+                }] if turno else []
+            }), 200
+
+    except Exception as ex:
+        if conn:
+            conn.rollback()
         return jsonify({
             'success': False,
             'description': 'No se pudo procesar la solicitud',
@@ -4628,7 +5117,7 @@ def updateMyUser():
 
         data = request.get_json()
         ci = request.ci
-        conn = connection()
+        conn = connection(request.role)
         cursor = conn.cursor()
 
         cursor.execute("SELECT login.mail FROM login JOIN user ON login.mail = user.mail WHERE ci = %s", (ci,))
