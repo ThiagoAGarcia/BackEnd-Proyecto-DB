@@ -1435,11 +1435,18 @@ def newReservation():
                 'description': 'No se puede reservar para una fecha que ya pasó'
             }), 400
 
+        if requested_date == today:
+            return jsonify({
+                'success': False,
+                'description': 'No se puede reservar para el dia actual'
+            }), 400
+
         if requested_date.isocalendar()[:2] != today.isocalendar()[:2]:
             return jsonify({
                 'success': False,
                 'description': 'Solo se puede reservar para la semana actual'
             }), 400
+
 
         conn = connection(request.role)
         cursor = conn.cursor()
@@ -1534,7 +1541,7 @@ def newReservation():
             cant = cant_row['cant'] if cant_row and cant_row['cant'] is not None else 0
 
             if cant >= 3:
-                conn.rollback()
+
                 cursor.close()
                 return jsonify({
                     'success': False,
@@ -3176,22 +3183,22 @@ def extend_reservation(groupId):
         reservation_create_date = current['reservationCreateDate']
 
         cursor.execute("""
-            SELECT u.ci, u.name, u.lastName
-            FROM studyGroup sg
-            JOIN user u ON sg.leader = u.ci
-            WHERE sg.studyGroupId = %s
-        """, (groupId,))
+                    SELECT u.ci, u.name, u.lastName
+                    FROM studyGroup sg
+                    JOIN user u ON sg.leader = u.ci
+                    WHERE sg.studyGroupId = %s
+                """, (groupId,))
         users = []
         leader_row = cursor.fetchone()
         if leader_row:
             users.append(leader_row)
 
         cursor.execute("""
-            SELECT u.ci, u.name, u.lastName
-            FROM studyGroupParticipant sgp
-            JOIN user u ON sgp.member = u.ci
-            WHERE sgp.studyGroupId = %s
-        """, (groupId,))
+                    SELECT u.ci, u.name, u.lastName
+                    FROM studyGroupParticipant sgp
+                    JOIN user u ON sgp.member = u.ci
+                    WHERE sgp.studyGroupId = %s
+                """, (groupId,))
         members = cursor.fetchall()
         if members:
             users.extend(members)
@@ -3199,14 +3206,14 @@ def extend_reservation(groupId):
         for user_row in users:
             user_ci = user_row['ci']
             cursor.execute("""
-                SELECT COUNT(DISTINCT CONCAT(r.date, '-', r.studyRoomId, '-', r.shiftId)) AS cant
-                FROM reservation r
-                JOIN studyGroup sg ON r.studyGroupId = sg.studyGroupId
-                LEFT JOIN studyGroupParticipant sgp ON sg.studyGroupId = sgp.studyGroupId
-                WHERE (sg.leader = %s OR sgp.member = %s)
-                  AND r.state = 'Activa'
-                  AND YEARWEEK(r.date, 1) = YEARWEEK(%s, 1)
-            """, (user_ci, user_ci, date))
+                        SELECT COUNT(DISTINCT CONCAT(r.date, '-', r.studyRoomId, '-', r.shiftId)) AS cant
+                        FROM reservation r
+                        JOIN studyGroup sg ON r.studyGroupId = sg.studyGroupId
+                        LEFT JOIN studyGroupParticipant sgp ON sg.studyGroupId = sgp.studyGroupId
+                        WHERE (sg.leader = %s OR sgp.member = %s)
+                          AND r.state = 'Activa'
+                          AND YEARWEEK(r.date, 1) = YEARWEEK(%s, 1)
+                    """, (user_ci, user_ci, date))
             cant_row = cursor.fetchone()
             cant = cant_row['cant'] if cant_row and cant_row['cant'] is not None else 0
 
