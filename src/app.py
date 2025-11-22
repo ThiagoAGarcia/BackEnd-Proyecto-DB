@@ -1435,7 +1435,18 @@ def newReservation():
                 'description': 'No se puede reservar para una fecha que ya pasó'
             }), 400
 
-        if requested_date.isocalendar()[:2] != today.isocalendar()[:2]:
+        if requested_date.weekday() >= 5:
+            return jsonify({
+                'success': False,
+                'description': 'No se pueden realizar reservas para sábado o domingo'
+            }), 400
+
+        if today.weekday() == 5:
+            allowed_week = (today + timedelta(days=2)).isocalendar()[:2]
+        else:
+            allowed_week = today.isocalendar()[:2]
+
+        if requested_date.isocalendar()[:2] != allowed_week:
             return jsonify({
                 'success': False,
                 'description': 'Solo se puede reservar para la semana actual'
@@ -1467,6 +1478,7 @@ def newReservation():
                 'description': f'No se puede hacer una reserva con un grupo inactivo'
             }), 404
 
+
         # Verificar que la sala exista
         cursor.execute(
             "SELECT studyRoomId FROM studyRoom WHERE studyRoomId = %s",
@@ -1489,6 +1501,39 @@ def newReservation():
                 'success': False,
                 'description': f'No se encontró el turno \"{shiftId}\"'
             }), 404
+
+        # Verificar que el turno no esté ocupado en esa sala en esa fecha
+        cursor.execute("""
+            SELECT *
+            FROM reservation
+            WHERE studyRoomId = %s
+              AND date = %s
+              AND shiftId = %s
+              AND state = 'Activa'
+        """, (studyRoomId, date, shiftId))
+
+        occupied = cursor.fetchone()
+
+        if occupied:
+            return jsonify({
+                'success': False,
+                'description': 'El turno ya está ocupado para esa sala en esa fecha'
+            }), 400
+
+        # Verificar que el grupo no tenga otra reserva activa
+        cursor.execute("""
+            SELECT *
+            FROM reservation
+            WHERE studyGroupId = %s
+        """, (studyGroupId,))
+
+        existing_group_res = cursor.fetchone()
+
+        if existing_group_res:
+            return jsonify({
+                'success': False,
+                'description': 'El grupo ya tiene una reserva activa'
+            }), 400
 
         cursor.execute("""
             DELETE sgp
@@ -2008,10 +2053,27 @@ def roomShift(building, date, shiftId, roomId):
         selected_date = datetime.strptime(date, "%Y-%m-%d").date()
         today = datetime.now().date()
 
-        if selected_date < today:
+        if selected_date <= today:
             return jsonify({
                 'success': False,
-                'description': 'No se puede elegir una fecha del mismo dia o anterior'
+                'description': 'No se puede elegir una fecha del mismo día o anterior'
+            }), 400
+
+        if selected_date.weekday() >= 5:
+            return jsonify({
+                'success': False,
+                'description': 'No se puede elegir un sábado o domingo'
+            }), 400
+
+        if today.weekday() == 5:
+            allowed_week = (today + timedelta(days=2)).isocalendar()[:2]
+        else:
+            allowed_week = today.isocalendar()[:2]
+
+        if selected_date.isocalendar()[:2] != allowed_week:
+            return jsonify({
+                'success': False,
+                'description': 'Solo se puede ver salas para la semana actual'
             }), 400
 
         shiftId = None if shiftId == "null" or shiftId == "0" else shiftId
