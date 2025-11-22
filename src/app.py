@@ -411,10 +411,10 @@ def createStudyRoom():
                 'description': 'La capacidad debe ser un número'
             }), 400
 
-        if capacity <= 3:
+        if capacity < 6:
             return jsonify({
                 'success': False,
-                'description': 'La capacidad debe ser mayor a 3'
+                'description': 'La capacidad debe ser mayor a 6'
             }), 400
 
         if len(roomName.strip()) < 4:
@@ -424,8 +424,8 @@ def createStudyRoom():
         cursor = conn.cursor()
 
         cursor.execute('''
-            INSERT INTO studyRoom (roomName, buildingName, capacity, roomType)
-            VALUES (%s, %s, %s, %s)
+            INSERT INTO studyRoom (roomName, buildingName, capacity, roomType, status)
+            VALUES (%s, %s, %s, %s, DEFAULT)
         ''', (roomName, buildingName, capacity, roomType))
 
         conn.commit()
@@ -461,8 +461,9 @@ def updateStudyRoom():
         buildingName = data.get('buildingName')
         capacity = data.get('capacity')
         roomType = data.get('roomType')
+        status = data.get('status')
 
-        if not all([studyRoomId, roomName, buildingName, capacity, roomType]):
+        if not all([studyRoomId, roomName, buildingName, capacity, roomType, status]):
             return jsonify({
                 'success': False,
                 'description': 'Faltan datos obligatorios'
@@ -476,10 +477,10 @@ def updateStudyRoom():
                 'description': 'La capacidad debe ser un número'
             }), 400
 
-        if capacity <= 3:
+        if capacity < 6:
             return jsonify({
                 'success': False,
-                'description': 'La capacidad debe ser mayor a 3'
+                'description': 'La capacidad debe ser mayor a 6'
             }), 400
 
         if len(roomName.strip()) < 4:
@@ -490,9 +491,9 @@ def updateStudyRoom():
 
         cursor.execute('''
             UPDATE studyRoom
-            SET roomName = %s, buildingName = %s, capacity = %s, roomType = %s
+            SET roomName = %s, buildingName = %s, capacity = %s, roomType = %s, status = %s
             WHERE studyRoomId = %s
-        ''', (roomName, buildingName, capacity, roomType, studyRoomId))
+        ''', (roomName, buildingName, capacity, roomType, status, studyRoomId))
 
         if cursor.rowcount == 0:
             cursor.close()
@@ -569,7 +570,7 @@ def getRooms(building):
         cursor = conn.cursor()
 
         cursor.execute('''
-            SELECT studyRoomId, roomName, buildingName, capacity, roomType
+            SELECT studyRoomId, roomName, buildingName, capacity, roomType, status
             FROM studyRoom
             WHERE buildingName = %s
             ORDER BY roomName;
@@ -1454,6 +1455,19 @@ def newReservation():
                 'description': f'No se encontró el grupo \"{studyGroupId}\"'
             }), 404
 
+        # Verificar que la sala esté activada
+        cursor.execute(
+            "SELECT studyRoomId FROM studyRoom WHERE studyRoomId = %s AND status = 'Activo'",
+            (studyRoomId,)
+        )
+        result = cursor.fetchone()
+        if not result:
+            return jsonify({
+                'success': False,
+                'description': f'No se puede hacer una reserva con un grupo inactivo'
+            }), 404
+
+        # Verificar que la sala exista
         cursor.execute(
             "SELECT studyRoomId FROM studyRoom WHERE studyRoomId = %s",
             (studyRoomId,)
@@ -1546,10 +1560,6 @@ def newReservation():
             'description': 'Error en la creación de la reserva',
             'error': str(ex)
         }), 500
-
-
-
-
 
 
 @app.route('/myGroup/<groupId>', methods=['GET'])
@@ -1888,7 +1898,7 @@ def getStudyRooms():
         cursor = conn.cursor()
 
         cursor.execute('''
-            SELECT studyRoomId, roomName, buildingName, capacity, roomType
+            SELECT studyRoomId, roomName, buildingName, capacity, roomType, status
             FROM studyRoom
             ORDER BY buildingName, roomName
         ''')
@@ -1935,7 +1945,7 @@ def getFreeRooms(building, date):
                 DATE_FORMAT(s.endTime, '%%H:%%i') AS Fin
             FROM studyRoom sR
             JOIN shift s
-            WHERE sR.buildingName = %s
+            WHERE sR.buildingName = %s AND sR.status = 'Activo'
             ORDER BY s.startTime;
         ''', (building,))
 
@@ -2012,7 +2022,7 @@ def roomShift(building, date, shiftId, roomId):
             cursor.execute('''
                 SELECT sR.roomName AS Sala, sR.capacity AS Capacidad, sR.studyRoomId AS SalaId
                 FROM studyRoom sR
-                WHERE sR.buildingName = %s AND EXISTS (
+                WHERE sR.buildingName = %s AND sR.status = 'Activo' AND EXISTS (
                     SELECT *
                     FROM shift sh
                     WHERE sh.shiftId NOT IN (
@@ -2032,7 +2042,7 @@ def roomShift(building, date, shiftId, roomId):
                 WHERE EXISTS (
                     SELECT *
                     FROM studyRoom sr
-                    WHERE sr.buildingName = %s AND sr.studyRoomId NOT IN (
+                    WHERE sr.buildingName = %s AND sr.status = 'Activo' AND sr.studyRoomId NOT IN (
                         SELECT r.studyRoomId
                         FROM reservation r
                         WHERE r.date = %s AND r.shiftId = s.shiftId
@@ -2065,7 +2075,7 @@ def roomShift(building, date, shiftId, roomId):
             cursor.execute('''
                 SELECT sR.roomName AS Sala, sR.capacity AS Capacidad, sR.studyRoomId AS SalaId
                 FROM studyRoom sR
-                WHERE sR.buildingName = %s AND sR.studyRoomId NOT IN (
+                WHERE sR.buildingName = %s AND sR.status = 'Activo' AND sR.studyRoomId NOT IN (
                     SELECT r.studyRoomId
                     FROM reservation r
                     WHERE r.date = %s AND r.shiftId = %s
@@ -2096,7 +2106,7 @@ def roomShift(building, date, shiftId, roomId):
                     SELECT r.shiftId
                     FROM reservation r
                     JOIN studyRoom sr ON sr.studyRoomId = r.studyRoomId
-                    WHERE r.date = %s AND sr.studyRoomId = %s
+                    WHERE r.date = %s AND sr.studyRoomId = %s AND sr.status = 'Activo' 
                 )
                 ORDER BY Inicio
             ''', (date, roomId))
@@ -2120,7 +2130,7 @@ def roomShift(building, date, shiftId, roomId):
             cursor.execute('''
                 SELECT sR.roomName AS Sala, sR.capacity AS Capacidad, sR.studyRoomId AS SalaId
                 FROM studyRoom sR
-                WHERE sR.buildingName = %s AND sR.studyRoomId = %s AND sR.studyRoomId NOT IN (
+                WHERE sR.buildingName = %s AND sR.studyRoomId = %s AND sR.status = 'Activo' AND sR.studyRoomId NOT IN (
                     SELECT r.studyRoomId
                     FROM reservation r
                     WHERE r.date = %s AND r.shiftId = %s
@@ -3550,6 +3560,8 @@ def leaveGroup(groupId):
             'success': False,
             'description': 'No se pudo procesar la solicitud'
         }), 500
+
+
 @app.route('/group/<groupId>/info', methods=['GET'])
 @token_required
 def getGroupInfo(groupId):
@@ -3617,7 +3629,7 @@ def getGroupInfo(groupId):
             SELECT MAX(sr.capacity) AS maxCapacity
             FROM studyRoom sr
             JOIN building b ON sr.buildingName = b.buildingName
-            WHERE b.campus = (
+            WHERE sr.status = 'Activo' AND b.campus = (
                 SELECT COALESCE(
                     (SELECT campus FROM student   WHERE ci = %s LIMIT 1),
                     (SELECT campus FROM professor WHERE ci = %s LIMIT 1)
@@ -4385,7 +4397,7 @@ def getMyCareer():
 def patchUpdateDataUser():
     try:
         if not user_has_role("administrator"):
-            return jsonify({'success': False, 'Description': 'unauthorized'}), 401
+            return jsonify({'success': False, 'Description': 'Usuario no autorizado'}), 401
 
         conn = connection(request.role)
         cursor = conn.cursor()
@@ -4505,6 +4517,110 @@ def patchUpdateDataUser():
             'description': 'Error interno',
             'error': str(ex)
         }), 500
+
+
+@app.route('/updateMyUser', methods=['PATCH'])
+@token_required
+def updateMyUser():
+    try:
+        if not user_has_role("administrator", "student", "professor", "librarian"):
+            return jsonify({'success': False, 'description': 'Usuario no autorizado'}), 401
+
+        data = request.get_json()
+        ci = request.ci
+        conn = connection()
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT login.mail FROM login JOIN user ON login.mail = user.mail WHERE ci = %s", (ci,))
+        row = cursor.fetchone()
+
+        if not row:
+            return jsonify({'success': False, 'description': 'No se encontró mail para este usuario'}), 404
+
+        mail = row["mail"]
+
+        name = data.get('name')
+        lastName = data.get('lastName')
+
+        oldPassword = data.get('oldPassword')
+        newPassword = data.get('newPassword')
+        confirmPassword = data.get('confirmPassword')
+
+        if name is not None or lastName is not None:
+
+            if name is not None:
+                name_clean = name.replace(" ", "")
+                if not name_clean or len(name_clean) < 3 or not name_clean.isalpha():
+                    return jsonify({'success': False, 'description': 'Nombre inválido'}), 400
+            else:
+                cursor.execute("SELECT name FROM user WHERE ci = %s", (ci,))
+                name_clean = cursor.fetchone()["name"]
+
+            if lastName is not None:
+                last_clean = lastName.replace(" ", "")
+                if not last_clean or len(last_clean) < 3 or not last_clean.isalpha():
+                    return jsonify({'success': False, 'description': 'Apellido inválido'}), 400
+            else:
+                cursor.execute("SELECT lastName FROM user WHERE ci = %s", (ci,))
+                last_clean = cursor.fetchone()["lastName"]
+
+            cursor.execute( "UPDATE user SET name = %s, lastName = %s WHERE ci = %s", (name_clean, last_clean, ci))
+            conn.commit()
+
+        if oldPassword or newPassword or confirmPassword:
+
+            if not all([oldPassword, newPassword, confirmPassword]):
+                return jsonify({
+                    'success': False,
+                    'description': 'Para cambiar contraseña debes enviar oldPassword, newPassword y confirmPassword'
+                }), 400
+
+            if newPassword != confirmPassword:
+                return jsonify({
+                    'success': False,
+                    'description': 'Las contraseñas nuevas no coinciden'
+                }), 400
+
+            if len(newPassword) < 9:
+                return jsonify({
+                    'success': False,
+                    'description': 'La nueva contraseña es muy corta (mínimo 9 caracteres)'
+                }), 400
+
+            cursor.execute("SELECT password FROM login WHERE mail = %s", (mail,))
+            row = cursor.fetchone()
+
+            if not row:
+                return jsonify({'success': False, 'description': 'Usuario no encontrado'}), 404
+
+            stored_hash = row["password"]
+
+            if isinstance(stored_hash, str):
+                stored_hash = stored_hash.encode()
+
+            if not bcrypt.checkpw(oldPassword.encode(), stored_hash):
+                cursor.close()
+                conn.close()
+                return jsonify({'success': False, 'description': 'La contraseña actual es incorrecta'}), 400 # DESPUES DE QUE AGREGUÉ ESTO, NO APARECE EL TOAST EN EL LOGIN
+
+            newHash = hash_pwd(newPassword)
+            cursor.execute("UPDATE login SET password = %s WHERE mail = %s", (newHash, mail))
+            conn.commit()
+
+        cursor.close()
+
+        return jsonify({
+            'success': True,
+            'description': 'Perfil actualizado correctamente'
+        }), 200
+
+    except Exception as ex:
+        return jsonify({
+            'success': False,
+            'description': 'Error al actualizar tu usuario',
+            'error': str(ex)
+        }), 500
+
 
 @app.route('/buildings', methods=['GET'])
 @token_required

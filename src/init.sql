@@ -71,15 +71,15 @@ CREATE TABLE studyRoom (
 	roomName VARCHAR(8) NOT NULL,
 	buildingName VARCHAR(32),
 	capacity INT NOT NULL CHECK ( capacity > 0 ),
-    roomType ENUM('Libre', 'Posgrado', 'Docente') DEFAULT 'Libre',
-    status ENUM('Activo', 'Inactivo') DEFAULT 'Activo',
+    roomType ENUM('Libre', 'Posgrado', 'Docente') DEFAULT 'Libre' NOT NULL,
+    status ENUM('Activo', 'Inactivo') DEFAULT 'Activo' NOT NULL,
 	FOREIGN KEY (buildingName) REFERENCES building(buildingName)
 );
 
 CREATE TABLE studyGroup (
     studyGroupId INT PRIMARY KEY AUTO_INCREMENT,
     studyGroupName VARCHAR(50) NOT NULL,
-    status ENUM('Activo', 'Inactivo') DEFAULT 'Activo',
+    status ENUM('Activo', 'Inactivo') DEFAULT 'Activo' NOT NULL,
     leader INT NOT NULL,
     FOREIGN KEY (leader) REFERENCES user(ci)
 );
@@ -128,7 +128,7 @@ CREATE TABLE reservation (
     shiftId INT NOT NULL,
     assignedLibrarian INT,
     reservationCreateDate DATE NOT NULL DEFAULT (CURRENT_DATE),
-	state ENUM('Activa', 'Cancelada', 'Sin asistencia', 'Finalizada') DEFAULT 'Activa',
+	state ENUM('Activa', 'Cancelada', 'Sin asistencia', 'Finalizada') DEFAULT 'Activa' NOT NULL,
     FOREIGN KEY (studyGroupId) REFERENCES studyGroup(studyGroupId),
 	FOREIGN KEY (studyRoomId) REFERENCES studyRoom(studyRoomId),
     FOREIGN KEY (shiftId) REFERENCES shift(shiftId),
@@ -139,7 +139,7 @@ CREATE TABLE reservation (
 CREATE TABLE groupRequest (
     studyGroupId INT,
 	receiver INT,
-	status ENUM('Aceptada', 'Pendiente', 'Rechazada') DEFAULT 'Pendiente',
+	status ENUM('Aceptada', 'Pendiente', 'Rechazada') DEFAULT 'Pendiente' NOT NULL,
     isValid BOOLEAN DEFAULT TRUE,
     requestDate DATETIME DEFAULT CURRENT_TIMESTAMP,
 	FOREIGN KEY (studyGroupId) REFERENCES studyGroup(studyGroupId),
@@ -251,24 +251,24 @@ INSERT INTO shift VALUES
 (NULL, '22:00:00', '23:00:00');
 
 INSERT INTO studyRoom VALUES
-(NULL, 'Sala 1', 'Central', 6, 'Libre', NULL),
-(NULL, 'Sala 2', 'Central', 8, 'Posgrado', NULL),
-(NULL, 'Sala 3', 'Central', 4, 'Docente', NULL),
-(NULL, 'Sala 1', 'San Ignacio', 4, 'Libre', NULL),
-(NULL, 'Sala 2', 'San Ignacio', 4, 'Posgrado', NULL),
-(NULL, 'Sala 3', 'San Ignacio', 4, 'Docente', NULL),
-(NULL, 'Sala 1', 'Mullin', 3, 'Libre', NULL),
-(NULL, 'Sala 2', 'Mullin', 4, 'Posgrado', NULL),
-(NULL, 'Sala 3', 'Mullin', 4, 'Docente', NULL),
-(NULL, 'Sala 1', 'San José', 5, 'Libre', NULL),
-(NULL, 'Sala 2', 'San José', 5, 'Posgrado', NULL),
-(NULL, 'Sala 3', 'San José', 5, 'Docente', NULL),
-(NULL, 'Sala 1', 'Semprún', 6, 'Libre', NULL),
-(NULL, 'Sala 2', 'Semprún', 6, 'Posgrado', NULL),
-(NULL, 'Sala 3', 'Semprún', 6, 'Docente', NULL),
-(NULL, 'Sala 1', 'Athanasius', 5, 'Libre', NULL),
-(NULL, 'Sala 2', 'Athanasius', 5, 'Posgrado', NULL),
-(NULL, 'Sala 3', 'Athanasius', 5, 'Docente', NULL);
+(NULL, 'Sala 1', 'Central', 6, 'Libre', DEFAULT),
+(NULL, 'Sala 2', 'Central', 8, 'Posgrado', DEFAULT),
+(NULL, 'Sala 3', 'Central', 4, 'Docente', DEFAULT),
+(NULL, 'Sala 1', 'San Ignacio', 4, 'Libre', DEFAULT),
+(NULL, 'Sala 2', 'San Ignacio', 4, 'Posgrado', DEFAULT),
+(NULL, 'Sala 3', 'San Ignacio', 4, 'Docente', DEFAULT),
+(NULL, 'Sala 1', 'Mullin', 3, 'Libre', DEFAULT),
+(NULL, 'Sala 2', 'Mullin', 4, 'Posgrado', DEFAULT),
+(NULL, 'Sala 3', 'Mullin', 4, 'Docente', DEFAULT),
+(NULL, 'Sala 1', 'San José', 5, 'Libre', DEFAULT),
+(NULL, 'Sala 2', 'San José', 5, 'Posgrado', DEFAULT),
+(NULL, 'Sala 3', 'San José', 5, 'Docente', DEFAULT),
+(NULL, 'Sala 1', 'Semprún', 6, 'Libre', DEFAULT),
+(NULL, 'Sala 2', 'Semprún', 6, 'Posgrado', DEFAULT),
+(NULL, 'Sala 3', 'Semprún', 6, 'Docente', DEFAULT),
+(NULL, 'Sala 1', 'Athanasius', 5, 'Libre', DEFAULT),
+(NULL, 'Sala 2', 'Athanasius', 5, 'Posgrado', DEFAULT),
+(NULL, 'Sala 3', 'Athanasius', 5, 'Docente', DEFAULT);
 
 INSERT INTO studyGroup VALUES
 (NULL, 'Equipo Programación I', 'Inactivo', 55897692),
