@@ -9,7 +9,6 @@ from db import connection
 from functools import wraps
 import re
 
-
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": ["http://localhost:5173", "http://127.0.0.1:5173"]}})
 
@@ -258,7 +257,8 @@ def getMySanctions():
             'error': str(ex)
         }), 500
 
-app.route('/newSanction', methods=['POST'])
+# Publicar sanciones
+@app.route('/newSanction', methods=['POST'])
 @token_required
 def postNewSanction():
     try:
@@ -269,52 +269,115 @@ def postNewSanction():
             }), 401
 
         data = request.get_json()
-        groupParticipantCi = data.get('groupParticipantCi')
+        members = data.get('members')
         librarianCi = request.ci 
         description = data.get('description')
         startDate = data.get('startDate')
         endDate = data.get('endDate')
 
-        is_active, msg = check_user_is_active(groupParticipantCi, request.role)
-        if not is_active:
-            return jsonify({
-                "success": False,
-                "description": msg
-            }), 403
-
-        is_active, msg = check_user_is_active(librarianCi, request.role)
-        if not is_active:
-            return jsonify({
-                "success": False,
-                "description": msg
-            }), 403
-        if not all([groupParticipantCi, librarianCi, description, startDate, endDate]):
+        if not all([members, librarianCi, description, startDate, endDate]):
             return jsonify({
                 'success': False,
                 'description': 'Faltan datos obligatorios'
             }), 400
+        
+        is_active, msg = check_user_is_active(librarianCi)
+        if not is_active:
+            return jsonify({
+                "success": False,
+                "description": msg
+            }), 403
         
         if description not in ['Comer', 'Ruidoso', 'Vandalismo', 'Imprudencia', 'Ocupar']:
             return jsonify({
                 'success': False,
                 'description': 'Descripción inválida'
             }), 400
-        
+
         conn = connection()
         cursor = conn.cursor()
 
-        cursor.execute(''' 
-            INSERT INTO sanctions VALUES
-            (NULL, %s, %s, %s, %s, %s)
+        for groupParticipantCi in members: 
+            is_active, msg = check_user_is_active(groupParticipantCi)
+            if not is_active:
+                return jsonify({
+                    "success": False,
+                    "description": msg
+                }), 403
 
-        ''', (groupParticipantCi, librarianCi, description, startDate, endDate))
-        conn.commit()
+            cursor.execute(''' 
+                INSERT INTO sanction VALUES
+                (NULL, %s, %s, %s, %s, %s)
+
+            ''', (groupParticipantCi, librarianCi, description, startDate, endDate))
+
+        conn.commit()        
         cursor.close()
+
         return jsonify({
             'success': True,
             'description': 'Sanción creada correctamente'
         }), 200
     
+    except Exception as ex:
+        return jsonify({
+            'success': False,
+            'description': 'No se pudo procesar la solicitud',
+            'error': str(ex)
+        }), 500
+    
+# Conseguir sanciones del día
+@app.route('/getDaySanctions', methods=['GET'])
+@token_required
+def getDaySanctions():
+    try:
+        if not user_has_role("librarian"):
+            return jsonify({
+                "success": False,
+                "description": "Usuario no autorizado",
+            }), 401
+        
+        conn = connection()
+        cursor = conn.cursor()
+        
+        today = date.today().strftime("%Y-%m-%d")
+
+        cursor.execute(''' 
+            SELECT s.sanctionId, u.name, u.lastName, u.mail, u.ci, s.description, s.startDate, s.endDate, s.librarianCi
+            FROM sanction s
+            JOIN user u ON u.ci = s.ci
+            WHERE s.startDate = %s;
+        ''', (today,))
+
+        results = cursor.fetchall()
+        sanctions = []
+
+        if (results):
+            for row in results:
+                sanctions.append({
+                    "id": row['sanctionId'],
+                    "name": row['name'],
+                    "lastName": row['lastName'],
+                    "ci": row['ci'],
+                    "mail": row['mail'],
+                    "description": row['description'],
+                    "start": row['startDate'],
+                    "end": row['endDate'],
+                    "librarian": row['librarianCi']
+                })
+        else:
+            return jsonify({
+                'success': True,
+                'description': 'No se han hecho sanciones hoy',
+                'sanciones': []
+            })
+
+        return jsonify({
+            'success': True,
+            'description': 'Sanciones del día de hoy',
+            'sanciones': sanctions
+        })
+
     except Exception as ex:
         return jsonify({
             'success': False,
@@ -1873,8 +1936,6 @@ def newReservationExpress():
         }), 500
 
 
-
-
 @app.route('/myGroup/<groupId>', methods=['GET'])
 @token_required
 def getGroupUser(groupId):
@@ -1974,7 +2035,56 @@ def getGroupUser(groupId):
             'error': str(ex)
         }), 500
 
+# Conseguir miembros de un grupo
+@app.route('/getGroupMembers/<groupId>')
+@token_required
+def getGroupMembers(groupId):
+    try:
+        if not user_has_role("librarian"):
+            return jsonify({
+                "success": False,
+                "description": "Usuario no autorizado",
+            }), 401
+        
+        conn = connection()
+        cursor = conn.cursor()
 
+        groupId = int(groupId)
+
+        cursor.execute(''' 
+            SELECT u.name AS name, u.lastName AS lastName, u.ci AS ci
+            FROM studyGroupParticipant sGP
+            JOIN user u ON sGP.member = u.ci
+            JOIN studyGroup sG on sGP.studyGroupId = sG.studyGroupId
+            WHERE sGP.studyGroupId = %s AND sG.status = 'Activo'
+            UNION
+            SELECT u.name AS name, u.lastName AS lastName, u.ci AS ci
+            FROM studyGroup sG
+            JOIN user u ON sG.leader = u.ci
+            WHERE studyGroupId = %s AND sG.status = 'Activo';
+        ''', (groupId, groupId,))
+
+        results = cursor.fetchall()
+        members = []
+
+        for row in results:
+            members.append({
+                "name": row['name'],
+                "lastName": row['lastName'],
+                "ci": row['ci']
+            })
+
+        return jsonify({
+            'success': True,
+            'members': members
+        }), 200
+
+    except Exception as ex:
+        return jsonify({
+            'success': False,
+            'description': 'No se pudo procesar la solicitud',
+            'error': str(ex)
+        }), 500
 
 # Enviar una solicitud
 @app.route('/sendGroupRequest', methods=['POST'])
@@ -3002,7 +3112,8 @@ def getAvailableReservationsByDate():
                 sR.roomName AS studyRoomName,
                 sR.buildingName AS building,
                 r.studyGroupId AS studyGroupId,
-                r.assignedLibrarian AS librarian
+                r.assignedLibrarian AS librarian,
+                r.state AS state
             FROM reservation r
             JOIN shift s ON r.shiftId = s.shiftId
             JOIN studyRoom sR ON r.studyRoomId = sR.studyRoomId
@@ -3033,7 +3144,8 @@ def getAvailableReservationsByDate():
                 "studyRoom": row['studyRoomName'],
                 "building": row['building'],
                 "studyGroupId": row['studyGroupId'],
-                "assignedLibrarian": row['librarian']
+                "assignedLibrarian": row['librarian'],
+                "state": row['state']
             })
 
          # Esto es para cuando una reserva tiene dos bloques de horario
@@ -3098,12 +3210,14 @@ def getManagedReservationsByDate():
                 sR.roomName   AS studyRoomName,
                 sR.buildingName AS building,
                 r.studyGroupId   AS studyGroupId,
-                r.assignedLibrarian AS librarian
+                r.assignedLibrarian AS librarian,
+                r.state AS state
             FROM reservation r
             JOIN shift s     ON r.shiftId = s.shiftId
             JOIN studyRoom sR ON r.studyRoomId = sR.studyRoomId
             WHERE r.date = %s
-              AND r.assignedLibrarian = %s;
+              AND r.assignedLibrarian = %s
+              AND r.state = 'Activa';
             ''',
             (today, ci)
         )
@@ -3119,7 +3233,8 @@ def getManagedReservationsByDate():
                     "studyRoom": row['studyRoomName'],
                     "building": row['building'],
                     "studyGroupId": row['studyGroupId'],
-                    "assignedLibrarian": row['librarian']
+                    "assignedLibrarian": row['librarian'],
+                    "state": row['state']
                 })
 
              # Esto es para cuando una reserva tiene dos bloques de horario
@@ -3183,13 +3298,14 @@ def getFinishedManagedReservations():
                 sR.roomName   AS studyRoomName,
                 sR.buildingName AS building,
                 r.studyGroupId   AS studyGroupId,
-                r.assignedLibrarian AS librarian
+                r.assignedLibrarian AS librarian,
+                r.state AS state
             FROM reservation r
             JOIN shift s     ON r.shiftId = s.shiftId
             JOIN studyRoom sR ON r.studyRoomId = sR.studyRoomId
             WHERE r.date = %s
               AND r.assignedLibrarian = %s
-              AND r.status = 'Finalizada';
+              AND r.state = 'Finalizada';
             ''',
             (today, ci)
         )
@@ -3205,7 +3321,8 @@ def getFinishedManagedReservations():
                     "studyRoom": row['studyRoomName'],
                     "building": row['building'],
                     "studyGroupId": row['studyGroupId'],
-                    "assignedLibrarian": row['librarian']
+                    "assignedLibrarian": row['librarian'],
+                    "state": row['state']
                 })
 
              # Esto es para cuando una reserva tiene dos bloques de horario
@@ -3358,6 +3475,43 @@ def patchUnmanageReservation():
         return jsonify({
             'success': False,
             'description': "No se pudo procesar la solicitud",
+            'error': str(ex)
+        }), 500
+
+@app.route('/patchFinishedReservations', methods=['PATCH'])
+@token_required
+def patchFinishedReservations():
+    try:
+        if not user_has_role("librarian"):
+            return jsonify({
+                "success": False,
+                "description": "Usuario no autorizado",
+            }), 401
+        
+        conn = connection()
+        cursor = conn.cursor()
+
+        today = date.today().strftime("%Y-%m-%d")
+        data = request.get_json()
+        shift = data.get('shift')
+
+        cursor.execute(''' 
+            UPDATE reservation
+            SET state = 'Finalizada'
+            WHERE shiftId = %s AND date = %s
+        ''', (shift, today))
+        conn.commit()
+
+        return jsonify({
+            'success': True,
+            'description': f'Reservas del turno {shift} finalizadas',
+            'shift': shift
+        })
+
+    except Exception as ex:
+        return jsonify({
+            'success': False,
+            'description': 'No se pudo procesar la solicitud.',
             'error': str(ex)
         }), 500
 
