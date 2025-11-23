@@ -222,7 +222,7 @@ def getMySanctions():
         cursor = conn.cursor()
         ci = request.ci
 
-        is_active, msg = check_user_is_active(request.ci)
+        is_active, msg = check_user_is_active(ci, request.role)
         if not is_active:
             return jsonify({
                 "success": False,
@@ -298,7 +298,7 @@ def postNewSanction():
         cursor = conn.cursor()
 
         for groupParticipantCi in members: 
-            is_active, msg = check_user_is_active(groupParticipantCi)
+            is_active, msg = check_user_is_active(groupParticipantCi, request.role)
             if not is_active:
                 return jsonify({
                     "success": False,
@@ -887,8 +887,6 @@ def deactivateUser(ci):
         }), 500
 
 
-
-
 # Registro de usuario
 @app.route('/register', methods=['POST'])
 def postRegister():
@@ -1346,8 +1344,6 @@ def postRegisterAdmin():
         }), 500
 
 
-
-
 @app.route('/login', methods=['POST'])
 def postLogin():
     try:
@@ -1739,6 +1735,8 @@ def newReservation():
             'description': 'Error en la creación de la reserva',
             'error': str(ex)
         }), 500
+    
+
 @app.route('/getAllGroups', methods=['GET'])
 @token_required
 def getGroups():
@@ -1804,6 +1802,7 @@ def getGroups():
             "description": "Error al obtener grupos",
             "error": str(ex),
         }), 500
+    
 
 @app.route('/newReservationExpress', methods=['POST'])
 @token_required
@@ -3241,7 +3240,8 @@ def getAvailableReservationsByDate():
                 sR.buildingName AS building,
                 r.studyGroupId AS studyGroupId,
                 r.assignedLibrarian AS librarian,
-                r.state AS state
+                r.state AS state,
+                r.shiftId AS shift
             FROM reservation r
             JOIN shift s ON r.shiftId = s.shiftId
             JOIN studyRoom sR ON r.studyRoomId = sR.studyRoomId
@@ -3273,7 +3273,8 @@ def getAvailableReservationsByDate():
                 "building": row['building'],
                 "studyGroupId": row['studyGroupId'],
                 "assignedLibrarian": row['librarian'],
-                "state": row['state']
+                "state": row['state'],
+                "shift": row['shift']
             })
 
          # Esto es para cuando una reserva tiene dos bloques de horario
@@ -3640,6 +3641,66 @@ def patchFinishedReservations():
         return jsonify({
             'success': False,
             'description': 'No se pudo procesar la solicitud.',
+            'error': str(ex)
+        }), 500
+    
+#Marcar una reserva sin asistencia
+@app.route('/patchEmptyReservation', methods=['PATCH'])
+@token_required
+def patchEmptyReservation():
+    try:
+        if not user_has_role("librarian"):
+            return jsonify({
+                "success": False,
+                "description": "Usuario no autorizado",
+            }), 401
+        
+        conn = connection(request.role)
+        cursor = conn.cursor()
+
+        data = request.get_json()
+
+        startDate = date.today().strftime("%Y-%m-%d")
+        groupId = data.get('groupId')
+        studyRoomId = data.get('studyRoomId')
+        shift = data.get('shift')
+        members = data.get('members')
+        librarianCi = request.ci
+        description = 'Imprudencia'
+        endDate = data.get('endDate')
+
+        cursor.execute(''' 
+            UPDATE reservation
+            SET state = 'Sin asistencia'
+            WHERE shiftId = %s AND date = %s AND studyRoomId = %s AND studyGroupId = %s
+        ''', (shift, startDate, studyRoomId, groupId,))
+
+        for groupParticipantCi in members: 
+            is_active, msg = check_user_is_active(groupParticipantCi, request.role)
+            if not is_active:
+                return jsonify({
+                    "success": False,
+                    "description": msg
+                }), 403
+
+            cursor.execute(''' 
+                INSERT INTO sanction VALUES
+                (NULL, %s, %s, %s, %s, %s)
+
+            ''', (groupParticipantCi, librarianCi, description, startDate, endDate,))
+
+        conn.commit()        
+        cursor.close()
+
+        return jsonify({
+            'success': True,
+            'description': 'Sanción creada correctamente'
+        }), 200
+    
+    except Exception as ex:
+        return jsonify({
+            'success': False,
+            'description': 'No se pudo procesar la solicitud',
             'error': str(ex)
         }), 500
 
