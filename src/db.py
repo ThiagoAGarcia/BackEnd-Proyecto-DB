@@ -19,6 +19,9 @@ def connection(role="unknown", retries=10, delay=3):
                 database=db_config.MYSQL_DB,
                 charset="utf8mb4",
                 cursorclass=pymysql.cursors.DictCursor,
+                init_command="SET time_zone='-03:00'"
+
+
             )
             print(f"✅ Conectado a MySQL como {creds['user']} (rol app: {role})")
             return conn

@@ -1948,6 +1948,11 @@ def newReservationExpress():
 
         today = datetime.now().date()
 
+        if today.weekday() >= 5:
+            return jsonify({
+                'success': False,
+                'description': 'No se pueden realizar reservas para sábado o domingo'
+            }), 400
         if not all([studyGroupId, studyRoomId, shiftId]):
             return jsonify({
                 'success': False,
@@ -3013,6 +3018,11 @@ def roomShiftToday(shiftId, roomId):
 
         today = datetime.now().date()
 
+        if today.weekday() >= 5:
+            return jsonify({
+                'success': False,
+                'description': 'No se pueden realizar reservas para sábado o domingo'
+            }), 400
         cursor.execute(
             "SELECT buildingName FROM librarian WHERE ci = %s",
             (request.ci,)
