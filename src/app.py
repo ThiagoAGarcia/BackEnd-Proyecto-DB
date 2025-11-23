@@ -281,7 +281,7 @@ def postNewSanction():
                 'description': 'Faltan datos obligatorios'
             }), 400
         
-        is_active, msg = check_user_is_active(librarianCi)
+        is_active, msg = check_user_is_active(librarianCi, request.role)
         if not is_active:
             return jsonify({
                 "success": False,
@@ -294,7 +294,7 @@ def postNewSanction():
                 'description': 'Descripción inválida'
             }), 400
 
-        conn = connection()
+        conn = connection(request.role)
         cursor = conn.cursor()
 
         for groupParticipantCi in members: 
@@ -337,7 +337,7 @@ def getDaySanctions():
                 "description": "Usuario no autorizado",
             }), 401
         
-        conn = connection()
+        conn = connection(request.role)
         cursor = conn.cursor()
         
         today = date.today().strftime("%Y-%m-%d")
@@ -2100,7 +2100,7 @@ def getGroupUser(groupId):
         }), 500
 
 # Conseguir miembros de un grupo
-@app.route('/getGroupMembers/<groupId>')
+@app.route('/getGroupMembers/<groupId>', methods=['GET'])
 @token_required
 def getGroupMembers(groupId):
     try:
@@ -2110,7 +2110,7 @@ def getGroupMembers(groupId):
                 "description": "Usuario no autorizado",
             }), 401
         
-        conn = connection()
+        conn = connection(request.role)
         cursor = conn.cursor()
 
         groupId = int(groupId)
@@ -3616,7 +3616,7 @@ def patchFinishedReservations():
                 "description": "Usuario no autorizado",
             }), 401
         
-        conn = connection()
+        conn = connection(request.role)
         cursor = conn.cursor()
 
         today = date.today().strftime("%Y-%m-%d")
