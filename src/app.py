@@ -1786,27 +1786,27 @@ def getGroups():
         if text:
             search = f"%{text}%"
             cursor.execute("""
-                SELECT sg.studyGroupId,
-                       sg.studyGroupName,
-                       sg.status,
-                       u.name,
-                       u.lastName
+                SELECT sg.studyGroupId, sg.studyGroupName, sg.status, u.name, u.lastName
                 FROM studyGroup sg
                 JOIN user u ON sg.leader = u.ci
-                WHERE sg.studyGroupName LIKE %s and sg.status = 'activo'
-                ORDER BY sg.studyGroupName
+                WHERE sg.studyGroupName LIKE %s AND sg.status = 'Activo' AND NOT EXISTS (
+                    SELECT *
+                    FROM reservation r
+                    WHERE r.studyGroupId = sg.studyGroupId
+                )
+                ORDER BY sg.studyGroupName;
             """, (search,))
         else:
             cursor.execute("""
-                SELECT sg.studyGroupId,
-                       sg.studyGroupName,
-                       sg.status,
-                       u.name,
-                       u.lastName
+                SELECT sg.studyGroupId, sg.studyGroupName, sg.status, u.name, u.lastName
                 FROM studyGroup sg
                 JOIN user u ON sg.leader = u.ci
-                WHERE sg.status = 'activo'
-                ORDER BY sg.studyGroupName
+                WHERE sg.status = 'Activo' AND NOT EXISTS (
+                    SELECT *
+                    FROM reservation r
+                    WHERE r.studyGroupId = sg.studyGroupId
+                )
+                ORDER BY sg.studyGroupName;
             """)
 
         rows = cursor.fetchall()
@@ -2528,6 +2528,32 @@ def getFreeRooms(building, date):
         conn = connection(request.role)
         cursor = conn.cursor()
 
+        selected_date = datetime.strptime(date, "%Y-%m-%d").date()
+        today = datetime.now().date()
+
+        if selected_date <= today:
+            return jsonify({
+                'success': False,
+                'description': 'No se puede elegir una fecha del mismo día o anterior'
+            }), 400
+
+        if selected_date.weekday() >= 5:
+            return jsonify({
+                'success': False,
+                'description': 'No se puede elegir un sábado o domingo'
+            }), 400
+
+        if today.weekday() in (5, 6):
+            allowed_week = (today + timedelta(days=(7 - today.weekday()))).isocalendar()[:2]
+        else:
+            allowed_week = today.isocalendar()[:2]
+
+        if selected_date.isocalendar()[:2] != allowed_week:
+            return jsonify({
+                'success': False,
+                'description': 'Solo se puede ver salas para la semana actual'
+            }), 400
+
         cursor.execute('''
             SELECT 
                 sR.studyRoomId,
@@ -2845,7 +2871,7 @@ def roomShiftToday(shiftId, roomId):
             cursor.execute('''
                 SELECT sR.roomName AS Sala, sR.capacity AS Capacidad, sR.studyRoomId AS SalaId
                 FROM studyRoom sR
-                WHERE sR.buildingName = %s 
+                WHERE sR.buildingName = %s AND roomType = 'Libre'
                   AND sR.status = 'Activo' 
                   AND EXISTS (
                     SELECT *
@@ -2916,7 +2942,7 @@ def roomShiftToday(shiftId, roomId):
             cursor.execute('''
                 SELECT sR.roomName AS Sala, sR.capacity AS Capacidad, sR.studyRoomId AS SalaId
                 FROM studyRoom sR
-                WHERE sR.buildingName = %s 
+                WHERE sR.buildingName = %s AND roomType = 'Libre'
                   AND sR.status = 'Activo' 
                   AND sR.studyRoomId NOT IN (
                     SELECT r.studyRoomId
@@ -2986,7 +3012,7 @@ def roomShiftToday(shiftId, roomId):
             cursor.execute('''
                 SELECT sR.roomName AS Sala, sR.capacity AS Capacidad, sR.studyRoomId AS SalaId
                 FROM studyRoom sR
-                WHERE sR.buildingName = %s 
+                WHERE sR.buildingName = %s  AND roomType = 'Libre'
                   AND sR.studyRoomId = %s 
                   AND sR.status = 'Activo' 
                   AND sR.studyRoomId NOT IN (
@@ -3293,6 +3319,10 @@ def getAvailableReservationsByDate():
         conn = connection(request.role)
         cursor = conn.cursor()
 
+        cursor.execute("SELECT buildingName FROM librarian WHERE ci = %s", (request.ci,))
+        row = cursor.fetchone()
+        librarian_building = row["buildingName"]
+
         today = date.today().strftime("%Y-%m-%d")
 
         cursor.execute(
@@ -3310,9 +3340,9 @@ def getAvailableReservationsByDate():
             JOIN shift s ON r.shiftId = s.shiftId
             JOIN studyRoom sR ON r.studyRoomId = sR.studyRoomId
             WHERE r.date = %s
-              AND r.assignedLibrarian IS NULL;
+              AND r.assignedLibrarian IS NULL AND sR.buildingName = %s;;
             ''',
-            (today,)
+            (today, librarian_building)
         )
 
         results = cursor.fetchall()
