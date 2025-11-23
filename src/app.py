@@ -1960,13 +1960,13 @@ def newReservationExpress():
             FROM studyGroupParticipant sGP
             JOIN user u ON sGP.member = u.ci
             JOIN studyGroup sG on sGP.studyGroupId = sG.studyGroupId
-            JOIN sanction s on u.ci = sanction.ci
+            JOIN sanction s on u.ci = s.ci
             WHERE sGP.studyGroupId = %s AND sG.status = 'Activo' AND s.endDate > CURRENT_DATE()
             UNION
             SELECT u.name AS name, u.lastName AS lastName, u.ci AS ci
             FROM studyGroup sG
             JOIN user u ON sG.leader = u.ci
-            JOIN sanction s on u.ci = sanction.ci
+            JOIN sanction s on u.ci = s.ci
             WHERE studyGroupId = %s AND sG.status = 'Activo' AND s.endDate > CURRENT_DATE();""", (studyGroupId, studyGroupId,)
         )
 
