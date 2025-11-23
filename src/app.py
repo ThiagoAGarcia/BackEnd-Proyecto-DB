@@ -1946,13 +1946,14 @@ def newReservationExpress():
         studyRoomId = data.get('studyRoomId')
         shiftId = data.get('shiftId')
 
-        today = datetime.now().date()
+        today = date.today().strftime("%Y-%m-%d")
 
         if today.weekday() >= 5:
             return jsonify({
                 'success': False,
                 'description': 'No se pueden realizar reservas para sábado o domingo'
             }), 400
+        
         if not all([studyGroupId, studyRoomId, shiftId]):
             return jsonify({
                 'success': False,
@@ -1979,7 +1980,7 @@ def newReservationExpress():
         if result:
             return jsonify({
                 'success': False,
-                'description': f"La persona {result['name']} {result['lastname']} tiene sanciones"
+                'description': f"La persona {result['name']} {result['lastName']} tiene sanciones"
             })
 
         # edificio del bibliotecario
@@ -3023,6 +3024,7 @@ def roomShiftToday(shiftId, roomId):
                 'success': False,
                 'description': 'No se pueden realizar reservas para sábado o domingo'
             }), 400
+    
         cursor.execute(
             "SELECT buildingName FROM librarian WHERE ci = %s",
             (request.ci,)
@@ -3707,7 +3709,7 @@ def getFinishedManagedReservations():
             JOIN studyRoom sR ON r.studyRoomId = sR.studyRoomId
             WHERE r.date = %s
               AND r.assignedLibrarian = %s
-            (r.state = 'Finalizada' OR r.state = 'Sin asistencia')            
+            AND r.state = 'Finalizada' OR r.state = 'Sin asistencia'        
             ''', (today, ci))
 
         results = cursor.fetchall()
@@ -3930,7 +3932,7 @@ def patchEmptyReservation():
 
         data = request.get_json()
 
-        groupId = data.get('groupId')
+        groupId = data.get('studyGroupId')
         studyRoomId = data.get('studyRoomId')
         shift = data.get('shift')
         members = data.get('members')
@@ -3938,28 +3940,28 @@ def patchEmptyReservation():
         description = 'No asiste'
         endDate = data.get('endDate')
         startDate = data.get('startDate')
-
-        print(data)
+        today = date.today().strftime("%Y-%m-%d")
 
         cursor.execute(''' 
             UPDATE reservation
             SET state = 'Sin asistencia'
-            WHERE shiftId = %s AND date = %s AND studyRoomId = %s AND studyGroupId = %s
-        ''', (shift, startDate, studyRoomId, groupId,))
+            WHERE shiftId = %s AND date = %s AND studyGroupId = %s
+        ''', (shift, today, groupId,))
+        conn.commit()
 
         for groupParticipantCi in members: 
             is_active, msg = check_user_is_active(groupParticipantCi, request.role)
             if not is_active:
                 return jsonify({
                     "success": False,
-                    "description": msg
+                    "description": msg,
                 }), 403
 
             cursor.execute(''' 
                 INSERT INTO sanction VALUES
                 (NULL, %s, %s, %s, %s, %s)
 
-            ''', (groupParticipantCi, librarianCi, description, startDate, endDate,))
+            ''', (groupParticipantCi, librarianCi, description, today, endDate,))
 
         conn.commit()        
         cursor.close()
@@ -3973,7 +3975,8 @@ def patchEmptyReservation():
         return jsonify({
             'success': False,
             'description': 'No se pudo procesar la solicitud',
-            'error': str(ex)
+            'error': str(ex),
+            'today': today
         }), 500
     
 # Enviar una sanción a
