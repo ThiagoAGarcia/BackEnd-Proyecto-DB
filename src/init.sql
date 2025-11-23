@@ -438,6 +438,7 @@ GRANT INSERT, SELECT, UPDATE, DELETE ON ObligatorioBDD.studygroup TO 'student_us
 GRANT ALL PRIVILEGES ON ObligatorioBDD.studyGroupParticipant TO 'student_user'@'%';
 GRANT SELECT, UPDATE ON ObligatorioBDD.student TO 'student_user'@'%';
 GRANT SELECT ON ObligatorioBDD.professor TO 'student_user'@'%';
+GRANT INSERT ON ObligatorioBDD.sanction TO 'student_user'@'%';
 GRANT ALL PRIVILEGES ON ObligatorioBDD.reservation TO 'student_user'@'%';
 GRANT SELECT ON ObligatorioBDD.librarian TO 'student_user'@'%';
 GRANT ALL PRIVILEGES ON ObligatorioBDD.groupRequest TO 'student_user'@'%';
@@ -450,6 +451,7 @@ GRANT SELECT ON ObligatorioBDD.faculty TO 'professor_user'@'%';
 GRANT SELECT ON ObligatorioBDD.career TO 'professor_user'@'%';
 GRANT SELECT, UPDATE ON ObligatorioBDD.login TO 'professor_user'@'%';
 GRANT SELECT ON ObligatorioBDD.building TO 'professor_user'@'%';
+GRANT INSERT ON ObligatorioBDD.sanction TO 'professor_user'@'%';
 GRANT SELECT ON ObligatorioBDD.shift TO 'professor_user'@'%';
 GRANT SELECT ON ObligatorioBDD.studyroom TO 'professor_user'@'%';
 GRANT INSERT, SELECT, UPDATE, DELETE ON ObligatorioBDD.studygroup TO 'professor_user'@'%';

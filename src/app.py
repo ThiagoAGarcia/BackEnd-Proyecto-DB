@@ -257,6 +257,103 @@ def getMySanctions():
             'error': str(ex)
         }), 500
 
+
+
+@app.route('/cancelReservation/<studyGroupId>&<studyRoomId>&<date>&<shiftId>', methods=['DELETE'])
+@token_required
+def cancelReservation(studyGroupId, studyRoomId, date, shiftId):
+    conn = None
+    cursor = None
+    try:
+        if user_has_role("librarian") or user_has_role("administrator"):
+            return jsonify({
+                "success": False,
+                "description": "Usuario no autorizado",
+            }), 401
+
+
+
+        if not all([studyGroupId, studyRoomId, date, shiftId]):
+            return jsonify({
+                "success": False,
+                "description": "Faltan datos obligatorios"
+            }), 400
+
+        requested_date = datetime.strptime(date, "%Y-%m-%d").date()
+        today = datetime.now(timezone.utc).date()
+
+        conn = connection(request.role)
+        cursor = conn.cursor()
+
+        sanctions = False
+
+        if requested_date == today:
+            cursor.execute("""
+                SELECT DISTINCT u.ci
+                FROM user u
+                JOIN (
+                    SELECT leader AS ci
+                    FROM studyGroup
+                    WHERE studyGroupId = %s
+
+                    UNION
+
+                    SELECT member AS ci
+                    FROM studyGroupParticipant
+                    WHERE studyGroupId = %s
+                ) AS g ON g.ci = u.ci
+            """, (studyGroupId, studyGroupId))
+
+            members = cursor.fetchall()
+
+            for row in members:
+                groupParticipantCi = row['ci']
+                cursor.execute("""
+                    INSERT INTO sanction (ci, librarianCi, description, startDate, endDate)
+                    VALUES (%s, NULL, 'No Asiste', CURRENT_DATE(), DATE_ADD(CURRENT_DATE(), INTERVAL 2 MONTH))
+                """, (groupParticipantCi,))
+                sanctions = True
+
+
+        cursor.execute("""
+            DELETE FROM reservation
+            WHERE studyGroupId = %s AND studyRoomId = %s AND date = %s AND shiftId = %s
+        """, (studyGroupId, studyRoomId, date, shiftId))
+
+        if cursor.rowcount == 0:
+            conn.rollback()
+            return jsonify({
+                'success': False,
+                'description': 'No se encontró la reserva a cancelar'
+            }), 404
+
+        conn.commit()
+
+        description = 'Reserva cancelada correctamente'
+        if sanctions:
+            description += ' (el grupo ha sido sancionado por cancelar la reserva el mismo día)'
+
+        return jsonify({
+            'success': True,
+            'description': description
+        }), 200
+
+    except Exception as ex:
+        if conn:
+            conn.rollback()
+        return jsonify({
+            'success': False,
+            'description': 'No se pudieron cancelar la reserva',
+            'error': str(ex)
+        }), 500
+
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+
+
 # Publicar sanciones
 @app.route('/newSanction', methods=['POST'])
 @token_required
@@ -4015,6 +4112,7 @@ def get_group_reservation(groupId):
                 r.studyRoomId,
                 sr.roomName,
                 sr.buildingName,
+                sh.shiftId as shiftId,
                 b.campus,
                 r.date,
                 MIN(sh.startTime) AS startTime,
@@ -4040,6 +4138,7 @@ def get_group_reservation(groupId):
                 r.studyGroupId,
                 sg.studyGroupName,
                 r.studyRoomId,
+                shiftId,
                 sr.roomName,
                 sr.buildingName,
                 b.campus,
@@ -4073,6 +4172,7 @@ def get_group_reservation(groupId):
             'shiftStart': str(start_time) if start_time is not None else None,
             'shiftEnd': str(end_time) if end_time is not None else None,
             'blocks': int(row['blocks']) if row['blocks'] is not None else 1,
+            'shiftId': row['shiftId'],
             'state': row['state'],
             'reservationCreateDate': row['reservationCreateDate'].isoformat() if row['reservationCreateDate'] else None,
             'room': {
