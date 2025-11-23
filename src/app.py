@@ -442,6 +442,51 @@ def postNewSanction():
             'description': 'No se pudo procesar la solicitud',
             'error': str(ex)
         }), 500
+
+# Eliminar sanción   
+@app.route('/deleteSanction/<sanctionId>', methods=['DELETE'])
+@token_required
+def deleteSanction(sanctionId):
+    try:
+        if not user_has_role("librarian"):
+            return jsonify({
+                "success": False,
+                "description": "Usuario no autorizado",
+            }), 401
+        
+        librarianCi = request.ci
+        
+        is_active, msg = check_user_is_active(librarianCi, request.role)
+        if not is_active:
+            return jsonify({
+                "success": False,
+                "description": msg
+            }), 403
+
+        conn = connection(request.role)
+        cursor = conn.cursor()
+
+        sanctionId = int(sanctionId)
+
+        cursor.execute(''' 
+            DELETE FROM sanction
+            WHERE sanctionId = %s
+        ''', (sanctionId,))
+
+        conn.commit()
+        cursor.close()
+
+        return jsonify({
+            'success': True,
+            'description': 'Se ha eliminado la sanción correctamente'
+        }), 200
+    
+    except Exception as ex:
+        return jsonify({
+            'success': False,
+            'description': 'No se pudo procesar la solicitud',
+            'error': str(ex)
+        }), 500
     
 # Conseguir sanciones del día
 @app.route('/getDaySanctions', methods=['GET'])
@@ -1960,14 +2005,11 @@ def newReservationExpress():
 
         today = date.today().strftime("%Y-%m-%d")
 
-        ''' 
         if today.weekday() >= 5:
             return jsonify({
                 'success': False,
                 'description': 'No se pueden realizar reservas para sábado o domingo'
             }), 400
-        
-        '''
         
         if not all([studyGroupId, studyRoomId, shiftId]):
             return jsonify({
@@ -2655,15 +2697,12 @@ def getFreeRooms(building, date):
                 'description': 'No se puede elegir una fecha del mismo día o anterior'
             }), 400
 
-        ''' 
         if selected_date.weekday() >= 5:
             return jsonify({
                 'success': False,
                 'description': 'No se puede elegir un sábado o domingo'
             }), 400
-        
-        '''
-        
+    
         if today.weekday() in (5, 6):
             allowed_week = (today + timedelta(days=(7 - today.weekday()))).isocalendar()[:2]
         else:
