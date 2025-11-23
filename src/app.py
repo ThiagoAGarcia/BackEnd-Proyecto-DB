@@ -1960,11 +1960,14 @@ def newReservationExpress():
 
         today = date.today().strftime("%Y-%m-%d")
 
+        ''' 
         if today.weekday() >= 5:
             return jsonify({
                 'success': False,
                 'description': 'No se pueden realizar reservas para sábado o domingo'
             }), 400
+        
+        '''
         
         if not all([studyGroupId, studyRoomId, shiftId]):
             return jsonify({
@@ -2652,12 +2655,15 @@ def getFreeRooms(building, date):
                 'description': 'No se puede elegir una fecha del mismo día o anterior'
             }), 400
 
+        ''' 
         if selected_date.weekday() >= 5:
             return jsonify({
                 'success': False,
                 'description': 'No se puede elegir un sábado o domingo'
             }), 400
-
+        
+        '''
+        
         if today.weekday() in (5, 6):
             allowed_week = (today + timedelta(days=(7 - today.weekday()))).isocalendar()[:2]
         else:
@@ -3909,17 +3915,59 @@ def patchFinishedReservations():
         shift = data.get('shift')
 
         cursor.execute(''' 
+            SELECT r.studyGroupId
+            FROM reservation r
+            WHERE r.shiftId = %s
+        ''', (shift,))
+        groupResult = cursor.fetchall()
+
+        if not groupResult:
+            return jsonify({
+                'success': False,
+                'description': f'No se encontraron grupos con reservas en el turno {shift}'
+            }), 404
+        
+        groups = []
+        for row in groupResult:
+            groups.append(row['studyGroupId'])
+
+        for group in groups:
+            cursor.execute(''' 
+                UPDATE studyGroup
+                SET status = 'Inactivo'
+                WHERE studyGroupId = %s
+            ''', (group,))
+
+        cursor.execute(''' 
             UPDATE reservation
             SET state = 'Finalizada'
             WHERE shiftId = %s AND date = %s
         ''', (shift, today))
         conn.commit()
 
+        cursor.commit(''' 
+            SELECT sG.studyGroupId
+            FROM studyGroup sG
+            WHERE sG.status = 'Inactivo'
+        ''')
+
+        inactiveResult = cursor.fetchall()
+        if not inactiveResult:
+            return jsonify({
+                'success': False,
+                'description': 'Algo no ha funcionado'
+            })
+        
+        inactives = []
+        for row in inactiveResult:
+            inactives.append(row['studyGroupId'])
+
         return jsonify({
             'success': True,
             'description': f'Reservas del turno {shift} finalizadas',
-            'shift': shift
-        })
+            'shift': shift,
+            'inactives': inactives
+        }), 200
 
     except Exception as ex:
         return jsonify({

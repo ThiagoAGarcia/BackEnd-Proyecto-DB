@@ -256,7 +256,6 @@ INSERT INTO shift VALUES
 (NULL, '21:00:00', '22:00:00'),
 (NULL, '22:00:00', '23:00:00');
 
-
 INSERT INTO studyRoom VALUES
 (NULL, 'Sala 1 Libre', 'Central', 6, 'Libre', DEFAULT),
 (NULL, 'Sala 2 Posgrado', 'Central', 8, 'Posgrado', DEFAULT),
@@ -284,17 +283,23 @@ INSERT INTO studyRoom VALUES
 (NULL, 'Sala 1 Libre', 'Central Pta. del Este', 6, 'Libre', DEFAULT);
 
 INSERT INTO studyGroup VALUES
-(NULL, 'Equipo Programación I', 'Inactivo', 55897692),
-(NULL, 'Grupo Prog I', 'Inactivo', 55531973),
-(NULL, 'TI3 proyecto final', 'Inactivo', 56309531),
-(NULL, 'Los más capos', 'Activo', 57004718),
-(NULL, 'Celíacos Anónimos', 'Activo', 59283629),
-(NULL, 'Preparación matemática', 'Inactivo', 52435831),
-(NULL, 'BDD Proyecto final', 'Activo', 55897692),
-(NULL, 'Apoyo tesis', 'Activo', 36907777),
-(NULL, 'Deberes de inglés', 'Activo', 57004718),
-(NULL, 'Macroeconomía deberes', 'Activo', 52737428),
-(NULL, 'Física I preparación parcial', 'Activo', 57389261);
+(NULL, 'Grupo 1', 'Activo', 55897692),
+(NULL, 'Grupo 2', 'Activo', 55531973),
+(NULL, 'Grupo 3', 'Activo', 56309531),
+(NULL, 'Grupo 4', 'Activo', 57004718),
+(NULL, 'Grupo 5', 'Activo', 59283629),
+(NULL, 'Grupo 6', 'Activo', 52435831),
+(NULL, 'Grupo 7', 'Activo', 55897692),
+(NULL, 'Grupo 8', 'Activo', 36907777),
+(NULL, 'Grupo 9', 'Activo', 57004718),
+(NULL, 'Grupo 10', 'Activo', 52737428),
+(NULL, 'Grupo 11', 'Activo', 57389261),
+(NULL, 'Grupo 12', 'Activo', 55897692),
+(NULL, 'Grupo 13', 'Activo', 55531973),
+(NULL, 'Grupo 14', 'Activo', 56309531),
+(NULL, 'Grupo 15', 'Activo', 55897692),
+(NULL, 'Grupo 16', 'Activo', 55531973),
+(NULL, 'Grupo 17', 'Activo', 56309531);
 
 INSERT INTO studyGroupParticipant VALUES
 (1, 56309531),
@@ -339,7 +344,7 @@ INSERT INTO student VALUES
 (59283629, 6, 'Punta del Este'),
 (52435831, 6, 'Punta del Este'),
 (54729274, 3, 'Punta del Este'),
-(52737428, 3, 'Salto'),
+(52737428, 9, 'Salto'),
 (57389261, 4, 'Salto');
 
 INSERT INTO professor VALUES
@@ -358,13 +363,13 @@ INSERT INTO librarian VALUES
 (18595003, 'Central Salto');
 
 INSERT INTO reservation VALUES
-(1, 4, '2024-04-29', 5, 32124436, '2024-04-26', 'Finalizada'),
-(2, 4, '2024-04-29', 6, 32124436, '2024-04-25', 'Finalizada'),
-(1, 4, '2024-05-17', 7, 32124436, '2024-05-15', 'Finalizada'),
-(5, 4, '2025-05-21', 9, 32124436, '2025-05-20', 'Finalizada'),
-(11, 7, '2025-06-09', 6, 32124436, '2025-06-07', 'Finalizada'),
-(4, 10, '2025-07-15', 5, 32124436, '2025-07-14', 'Finalizada'),
-(7, 7, '2025-10-31', 8, 32124436, '2025-10-27', 'Activa');
+(1, 4, '2025-11-23', 5, NULL, '2025-11-18', 'Activa'),
+(2, 4, '2025-11-23', 6, NULL, '2024-11-18', 'Activa'),
+(3, 4, '2025-11-24', 7, NULL, '2024-11-21', 'Activa'),
+(4, 4, '2025-11-24', 9, NULL, '2025-11-21', 'Activa'),
+(5, 7, '2025-11-28', 6, NULL, '2025-11-26', 'Activa'),
+(6, 10, '2025-11-28', 5, NULL, '2025-11-14', 'Activa'),
+(7, 7, '2025-11-28', 8, NULL, '2025-10-27', 'Activa');
 
 INSERT INTO groupRequest VALUES
 (1, 56309531, 'Aceptada', FALSE, '2024-04-01 10:00:00'),
