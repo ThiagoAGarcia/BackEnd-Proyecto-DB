@@ -56,7 +56,7 @@ CREATE TABLE shift (
 
 CREATE TABLE studyRoom (
 	studyRoomId INT PRIMARY KEY AUTO_INCREMENT,
-	roomName VARCHAR(8) NOT NULL,
+	roomName VARCHAR(32) NOT NULL,
 	buildingName VARCHAR(32),
 	capacity INT NOT NULL CHECK ( capacity > 0 ),
     roomType ENUM('Libre', 'Posgrado', 'Docente') DEFAULT 'Libre' NOT NULL,
