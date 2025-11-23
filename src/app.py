@@ -310,8 +310,16 @@ def postNewSanction():
                 (NULL, %s, %s, %s, %s, %s)
 
             ''', (groupParticipantCi, librarianCi, description, startDate, endDate))
+        for groupParticipantCi in members:
+            cursor.execute("""DELETE r
+            FROM reservation r
+            JOIN studyGroup sG ON sG.studyGroupId = r.studyGroupId
+            WHERE sG.leader = %s;
+            """, (groupParticipantCi,))
+            cursor.execute('DELETE FROM studyGroupParticipant sGp WHERE sGp.member = %s ', (groupParticipantCi,))
 
-        conn.commit()        
+
+        conn.commit()
         cursor.close()
 
         return jsonify({
@@ -1586,6 +1594,30 @@ def newReservation():
                 'description': 'El turno ya está ocupado para esa sala en esa fecha'
             }), 400
 
+        cursor.execute("""SELECT 1 FROM sanction
+        WHERE ci = %s AND endDate > CURRENT_DATE()""", (request.ci, ))
+
+        result = cursor.fetchone()
+
+        if result:
+            return jsonify({
+                'success': False,
+                'description': 'Tienes una sanción'
+            })
+
+        cursor.execute("""SELECT u.name as name, u.lastName as lastname FROM studyGroupParticipant sgp
+            JOIN sanction s ON s.ci = sgp.member
+            JOIN user u on s.ci = u.ci
+            WHERE sgp.studyGroupId = %s AND endDate > CURRENT_DATE();""", (studyGroupId,))
+
+        result = cursor.fetchone()
+
+        if result:
+            return jsonify({
+                'success': False,
+                'description': f"el usuario {result['name']} {result['lastname']} tiene una sanción"
+            }), 400
+
         # Verificar que el grupo no tenga otra reserva activa
         cursor.execute("""
             SELECT *
@@ -1824,9 +1856,29 @@ def newReservationExpress():
                 'success': False,
                 'description': 'Faltan datos obligatorios'
             }), 400
-
         conn = connection(request.role)
         cursor = conn.cursor()
+        cursor.execute(
+            """SELECT u.name AS name, u.lastName AS lastName, u.ci AS ci
+            FROM studyGroupParticipant sGP
+            JOIN user u ON sGP.member = u.ci
+            JOIN studyGroup sG on sGP.studyGroupId = sG.studyGroupId
+            JOIN sanction s on u.ci = sanction.ci
+            WHERE sGP.studyGroupId = %s AND sG.status = 'Activo' AND s.endDate > CURRENT_DATE()
+            UNION
+            SELECT u.name AS name, u.lastName AS lastName, u.ci AS ci
+            FROM studyGroup sG
+            JOIN user u ON sG.leader = u.ci
+            JOIN sanction s on u.ci = sanction.ci
+            WHERE studyGroupId = %s AND sG.status = 'Activo' AND s.endDate > CURRENT_DATE();""", (studyGroupId, studyGroupId,)
+        )
+
+        result = cursor.fetchone()
+        if result:
+            return jsonify({
+                'success': False,
+                'description': f"La persona {result['name']} {result['lastname']} tiene sanciones"
+            })
 
         # edificio del bibliotecario
         cursor.execute(
@@ -2167,6 +2219,9 @@ def sendGroupRequest():
         receiver = data.get('receiver')
         role = request.role
 
+
+
+
         is_active, msg = check_user_is_active(ci_sender, request.role)
         if not is_active:
             return jsonify({
@@ -2190,6 +2245,17 @@ def sendGroupRequest():
 
         conn = connection(request.role)
         cursor = conn.cursor()
+
+        cursor.execute("""SELECT 1 FROM sanction
+                        WHERE ci = %s AND endDate > CURRENT_DATE()""", (receiver,))
+
+        result = cursor.fetchone()
+
+        if result:
+            return jsonify({
+                'success': False,
+                'description': 'La persona a la que intentas enviar una solicitud tiene una sanción'
+            })
 
         if role == 'student':
             cursor.execute("""SELECT COUNT(DISTINCT studyGroup.studyGroupId) AS cant
@@ -4627,6 +4693,17 @@ def acceptUserRequest(groupId):
             return jsonify({
                 'success': False,
                 'description': f'Ya perteneces a mas de 3 grupos'
+            })
+
+        cursor.execute("""SELECT 1 FROM sanction
+                                WHERE ci = %s AND endDate > CURRENT_DATE()""", (request.ci,))
+
+        result = cursor.fetchone()
+
+        if result:
+            return jsonify({
+                'success': False,
+                'description': 'No puedes aceptar la solicitud ya que tienes una sanción'
             })
 
         cursor.execute("""
