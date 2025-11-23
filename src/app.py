@@ -3500,12 +3500,14 @@ def getAvailableReservationsByDate():
                 r.studyGroupId AS studyGroupId,
                 r.assignedLibrarian AS librarian,
                 r.state AS state,
-                r.shiftId AS shift
+                r.shiftId AS shift,
+                r.date,
+                r.studyRoomId
             FROM reservation r
             JOIN shift s ON r.shiftId = s.shiftId
             JOIN studyRoom sR ON r.studyRoomId = sR.studyRoomId
             WHERE r.date = %s
-              AND r.assignedLibrarian IS NULL AND sR.buildingName = %s;;
+              AND r.assignedLibrarian IS NULL AND sR.buildingName = %s AND r.state = 'Activa';
             ''',
             (today, librarian_building)
         )
@@ -3529,11 +3531,13 @@ def getAvailableReservationsByDate():
                 "start": str(row['start']),
                 "end": str(row['end']),
                 "studyRoom": row['studyRoomName'],
+                "studyRoomId": row['studyRoomId'],
                 "building": row['building'],
                 "studyGroupId": row['studyGroupId'],
                 "assignedLibrarian": row['librarian'],
                 "state": row['state'],
-                "shift": row['shift']
+                "shift": row['shift'],
+                "date": row['date']
             })
 
          # Esto es para cuando una reserva tiene dos bloques de horario
@@ -3693,10 +3697,8 @@ def getFinishedManagedReservations():
             JOIN studyRoom sR ON r.studyRoomId = sR.studyRoomId
             WHERE r.date = %s
               AND r.assignedLibrarian = %s
-              AND r.state = 'Finalizada';
-            ''',
-            (today, ci)
-        )
+            (r.state = 'Finalizada' OR r.state = 'Sin asistencia')            
+            ''', (today, ci))
 
         results = cursor.fetchall()
         reservations = []
@@ -3738,7 +3740,6 @@ def getFinishedManagedReservations():
             'description': 'No se pudo procesar la solicitud',
             'error': str(ex)
         }), 500
-
 
 # Asignarle un bibliotecario una reserva por medio de su cédula
 @app.route('/manageReservation', methods=['PATCH'])
@@ -3903,7 +3904,7 @@ def patchFinishedReservations():
             'error': str(ex)
         }), 500
     
-#Marcar una reserva sin asistencia
+# Marcar una reserva sin asistencia
 @app.route('/patchEmptyReservation', methods=['PATCH'])
 @token_required
 def patchEmptyReservation():
@@ -3919,14 +3920,16 @@ def patchEmptyReservation():
 
         data = request.get_json()
 
-        startDate = date.today().strftime("%Y-%m-%d")
         groupId = data.get('groupId')
         studyRoomId = data.get('studyRoomId')
         shift = data.get('shift')
         members = data.get('members')
         librarianCi = request.ci
-        description = 'Imprudencia'
+        description = 'No asiste'
         endDate = data.get('endDate')
+        startDate = data.get('startDate')
+
+        print(data)
 
         cursor.execute(''' 
             UPDATE reservation
@@ -3962,6 +3965,8 @@ def patchEmptyReservation():
             'description': 'No se pudo procesar la solicitud',
             'error': str(ex)
         }), 500
+    
+# Enviar una sanción a
 
 
 # Conseguir todas las solicitudes de un usuario
