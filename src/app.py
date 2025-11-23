@@ -1510,8 +1510,8 @@ def newReservation():
                 'description': 'No se pueden realizar reservas para sábado o domingo'
             }), 400
 
-        if today.weekday() == 5:
-            allowed_week = (today + timedelta(days=2)).isocalendar()[:2]
+        if today.weekday() in (5, 6):
+            allowed_week = (today + timedelta(days=(7 - today.weekday()))).isocalendar()[:2]
         else:
             allowed_week = today.isocalendar()[:2]
 
@@ -1604,6 +1604,70 @@ def newReservation():
                 'success': False,
                 'description': 'El grupo ya tiene una reserva activa'
             }), 400
+
+        # ACÁ ARRANCA UNA VERIFICACIÓN DE INTEGRANTES
+
+        cursor.execute("""
+            SELECT COUNT(*) AS totalRequests
+            FROM groupRequest
+            WHERE studyGroupId = %s AND (status = 'Aceptada' OR status = 'Pendiente')
+        """, (studyGroupId,))
+
+        req_total_row = cursor.fetchone()
+
+        total_requests = req_total_row['totalRequests'] if req_total_row and req_total_row.get('totalRequests') is not None else 0
+
+        cursor.execute("""
+            SELECT COUNT(*) AS acceptedRequests
+            FROM groupRequest
+            WHERE studyGroupId = %s
+              AND status = 'Aceptada'
+              AND isValid = FALSE
+        """, (studyGroupId,))
+
+        req_accepted_row = cursor.fetchone()
+
+        accepted_requests = req_accepted_row['acceptedRequests'] if req_accepted_row and req_accepted_row.get('acceptedRequests') is not None else 0
+
+        if total_requests < 2:
+            return jsonify({
+                'success': False,
+                'description': 'Se necesita invitar a minimo 2 personas para hacer una reserva'
+            }), 400
+
+        total_members = total_requests + 1
+
+        cursor.execute("""
+            SELECT capacity
+            FROM studyRoom
+            WHERE studyRoomId = %s AND status = 'Activo'
+        """, (studyRoomId,))
+
+        room_row = cursor.fetchone()
+
+        if not room_row or room_row.get('capacity') is None:
+            return jsonify({
+                'success': False,
+                'description': 'No se encontró la sala'
+            }), 404
+
+        room_capacity = room_row['capacity']
+
+        if room_capacity < total_members:
+            return jsonify({
+                'success': False,
+                'description': 'La cantidad total de integrantes excede la capacidad de la sala'
+            }), 400
+
+        required_minimum = (total_members + 1) // 2
+
+        if accepted_requests < required_minimum:
+            return jsonify({
+                'success': False,
+                'description': 'Necesitas que al menos la mitad de las solicitudes hayan sido aceptadas'
+            }), 400
+
+        # ACÁ TERMINA LA VERIFICACION
 
         cursor.execute("""
             DELETE sgp
@@ -2126,8 +2190,10 @@ def sendGroupRequest():
                 'success': False,
                 'description': 'Faltan datos obligatorios'
             }), 400
+
         conn = connection(request.role)
         cursor = conn.cursor()
+
         if role == 'student':
             cursor.execute("""SELECT COUNT(DISTINCT studyGroup.studyGroupId) AS cant
             FROM studyGroup
@@ -2145,9 +2211,51 @@ def sendGroupRequest():
                     'description': f'el usuario con ci: {receiver} tiene mas de 3 grupos en esta semana'
                 })
 
+        # ACÁ VA A ARRANCAR A VERIFICAR QUE SI HAY UNA RESERVA ACTIVA, QUE NO SE PUEDA ENVIAR UNA SOLICITUD SI YA ESTÁ LLENO LA RESERVA DEL GRUPO
 
+        cursor.execute("""
+            SELECT studyRoomId AS active_res
+            FROM reservation
+            WHERE studyGroupId = %s AND state = 'Activa'
+        """, (studyGroupId,))
 
+        active_res = cursor.fetchone()
 
+        if active_res:
+            studyRoomId = active_res["studyRoomId"]
+
+            cursor.execute("""
+                SELECT capacity
+                FROM studyRoom
+                WHERE studyRoomId = %s
+            """, (studyRoomId,))
+
+            room = cursor.fetchone()
+
+            if not room:
+                return jsonify({
+                    "success": False,
+                    "description": "No se encontró la sala asociada a la reserva activa"
+                }), 500
+
+            capacity = room["capacity"]
+
+            cursor.execute("""
+                SELECT COUNT(*) AS current_total
+                FROM groupRequest
+                WHERE studyGroupId = %s AND status = 'Aceptada'
+            """, (studyGroupId,))
+
+            row = cursor.fetchone()
+            accepted = row["accepted_count"]
+
+            current_total = accepted + 1
+
+            if current_total >= capacity:
+                return jsonify({
+                    "success": False,
+                    "description": "El grupo ya alcanzó el maximo permitido por la sala de la reserva activa"
+                }), 400
 
         # ACÁ VERIFICA QUE EL QUE RECIBE LA SOLICITUD NO SEA UN BIBLIOTECARIO O ADMINISTRADOR (Porque no tiene sentido)
         # SI EL USUARIO TIENE EL ROL ADMIN AUNQUE TAMBIEN SEA USUARIO SE ROMPE, DEBEMOS CHEQUEAR QUE EL USUARIO SEA USER O PROFESOR
@@ -2415,9 +2523,9 @@ def getFreeRooms(building, date):
 
 
 # Devolverá todos los turnos y salas libres dependiendo del turno que se haya elegido o de la sala que se haya elegido
-@app.route('/roomShift/<building>&<date>&<shiftId>&<roomId>', methods=['GET'])
+@app.route('/roomShift/<selectedGroup>&<building>&<date>&<shiftId>&<roomId>', methods=['GET'])
 @token_required
-def roomShift(building, date, shiftId, roomId):
+def roomShift(selectedGroup, building, date, shiftId, roomId):
     try:
         if not user_has_role("student", "professor"):
             return jsonify({
@@ -2443,8 +2551,8 @@ def roomShift(building, date, shiftId, roomId):
                 'description': 'No se puede elegir un sábado o domingo'
             }), 400
 
-        if today.weekday() == 5:
-            allowed_week = (today + timedelta(days=2)).isocalendar()[:2]
+        if today.weekday() in (5, 6):
+            allowed_week = (today + timedelta(days=(7 - today.weekday()))).isocalendar()[:2]
         else:
             allowed_week = today.isocalendar()[:2]
 
@@ -2457,12 +2565,32 @@ def roomShift(building, date, shiftId, roomId):
         shiftId = None if shiftId == "null" or shiftId == "0" else shiftId
         roomId = None if roomId == "null" or roomId == "0" else roomId
 
+        cursor.execute("""
+            SELECT COUNT(*) AS totalRequests
+            FROM groupRequest
+            WHERE studyGroupId = %s AND status = 'Aceptada'
+        """, (selectedGroup,))
+
+        req_row = cursor.fetchone()
+        total_requests = req_row["totalRequests"] if req_row else 0
+
+        group_members = total_requests + 1
+
+        if group_members < 3:
+            return jsonify({
+                "success": False,
+                "description": "El grupo debe tener al menos 3 integrantes"
+            }), 400
+
+        min_capacity = group_members
+        max_capacity = group_members * 2
+
         # ACÁ VA A DEVOLVER TODAS LAS SALAS Y TURNOS SI NO HAY NADA SELECCIONADO DE LOS TURNOS Y SALAS
         if not shiftId and not roomId:
             cursor.execute('''
                 SELECT sR.roomName AS Sala, sR.capacity AS Capacidad, sR.studyRoomId AS SalaId
                 FROM studyRoom sR
-                WHERE sR.buildingName = %s AND sR.status = 'Activo' AND EXISTS (
+                WHERE sR.buildingName = %s AND sR.status = 'Activo' AND sR.capacity BETWEEN %s AND %s AND EXISTS (
                     SELECT *
                     FROM shift sh
                     WHERE sh.shiftId NOT IN (
@@ -2472,7 +2600,7 @@ def roomShift(building, date, shiftId, roomId):
                     )
                 )
                 ORDER BY Sala
-            ''', (building, date))
+            ''', (building, min_capacity, max_capacity, date))
 
             salas_libres = cursor.fetchall()
 
@@ -2515,13 +2643,13 @@ def roomShift(building, date, shiftId, roomId):
             cursor.execute('''
                 SELECT sR.roomName AS Sala, sR.capacity AS Capacidad, sR.studyRoomId AS SalaId
                 FROM studyRoom sR
-                WHERE sR.buildingName = %s AND sR.status = 'Activo' AND sR.studyRoomId NOT IN (
+                WHERE sR.buildingName = %s AND sR.status = 'Activo' AND sR.capacity BETWEEN %s AND %s AND sR.studyRoomId NOT IN (
                     SELECT r.studyRoomId
                     FROM reservation r
                     WHERE r.date = %s AND r.shiftId = %s
                 )
                 ORDER BY Sala
-            ''', (building, date, shiftId))
+            ''', (building, min_capacity, max_capacity, date, shiftId))
 
             salas = cursor.fetchall()
 
@@ -2570,12 +2698,12 @@ def roomShift(building, date, shiftId, roomId):
             cursor.execute('''
                 SELECT sR.roomName AS Sala, sR.capacity AS Capacidad, sR.studyRoomId AS SalaId
                 FROM studyRoom sR
-                WHERE sR.buildingName = %s AND sR.studyRoomId = %s AND sR.status = 'Activo' AND sR.studyRoomId NOT IN (
+                WHERE sR.buildingName = %s AND sR.studyRoomId = %s AND sR.status = 'Activo' AND sR.capacity BETWEEN %s AND %s AND sR.studyRoomId NOT IN (
                     SELECT r.studyRoomId
                     FROM reservation r
                     WHERE r.date = %s AND r.shiftId = %s
                 )
-            ''', (building, roomId, date, shiftId))
+            ''', (building, roomId, min_capacity, max_capacity, date, shiftId))
 
             sala = cursor.fetchone()
 
@@ -4480,7 +4608,7 @@ def acceptUserRequest(groupId):
 
         cursor.execute(''' 
             UPDATE groupRequest
-            SET status = 'Aceptada'
+            SET status = 'Aceptada', IsValid = FALSE
             WHERE receiver = %s AND studyGroupId = %s;
         ''', (ci, groupId))
 
@@ -4546,7 +4674,7 @@ def denyGroupRequest(groupId):
 
         cursor.execute(''' 
             UPDATE groupRequest
-            SET status = 'Rechazada'
+            SET status = 'Rechazada', isValid = FALSE
             WHERE receiver = %s AND studyGroupId = %s;
         ''', (ci, groupId))
         conn.commit()

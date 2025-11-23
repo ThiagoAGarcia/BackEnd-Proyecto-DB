@@ -7,8 +7,7 @@ SET character_set_connection = utf8mb4;
 SET character_set_results = utf8mb4;
 
 CREATE TABLE campus (
-    campusName VARCHAR(32) PRIMARY KEY CHECK ( CHAR_LENGTH(campusName) >= 5 ),
-    image VARCHAR(300) DEFAULT 'https://www.fivebranches.edu/wp-content/uploads/2021/08/default-image.jpg'
+    campusName VARCHAR(32) PRIMARY KEY CHECK ( CHAR_LENGTH(campusName) >= 5 )
 );
 
 CREATE TABLE user (
@@ -151,7 +150,7 @@ CREATE TABLE sanction (
 	sanctionId INT PRIMARY KEY AUTO_INCREMENT,
 	ci INT NOT NULL,
 	librarianCi INT,
-	description ENUM('Comer', 'Ruidoso', 'Vandalismo', 'Imprudencia', 'Ocupar') NOT NULL,
+	description ENUM('Comer', 'Ruidoso', 'Vandalismo', 'Imprudencia', 'Ocupar', 'No Asiste') NOT NULL,
 	startDate DATE NOT NULL,
     endDate DATE NOT NULL,
     FOREIGN KEY (ci) REFERENCES user(ci),
@@ -161,9 +160,9 @@ CREATE TABLE sanction (
 /**** INSERTIONS ****/
 
 INSERT INTO campus VALUES
-('Montevideo', 'https://i.ytimg.com/vi/I2_PamgttyQ/maxresdefault.jpg'),
-('Punta del Este', 'https://www.ucu.edu.uy/imgnoticias/202411/H950/4798.jpg'),
-('Salto', 'https://www.ucu.edu.uy/imgnoticias/202304/H950/1626.jpg');
+('Montevideo'),
+('Punta del Este'),
+('Salto');
 
 INSERT INTO user (ci, name, lastName, mail) VALUES
 (55897692, 'Agostina', 'Etchebarren', 'agostina.etchebarren@correo.ucu.edu.uy'),
@@ -183,7 +182,9 @@ INSERT INTO user (ci, name, lastName, mail) VALUES
 (45615815, 'Martha', 'Lauria', 'martha.lauria@ucu.edu.uy'),
 (12345678, 'Verónica', 'Posadas', 'veronica.posadas@ucu.edu.uy'),
 (45673829, 'Franco', 'Portela', 'franco.portela@ucu.edu.uy'),
-(32749352, 'Saúl', 'Esquivel', 'saul.esquivel@ucu.edu.uy');
+(32749352, 'Saúl', 'Esquivel', 'saul.esquivel@ucu.edu.uy'),
+(25081560, 'Paola', 'Brun', 'paola.brun@ucu.edu.uy'),
+(18595003, 'Fabián', 'Aguerre', 'fabian.aguerre@ucu.edu.uy');
 
 INSERT INTO faculty VALUES
 (NULL, 'Facultad de Psicología y Bienestar Humano'),
@@ -224,7 +225,9 @@ INSERT INTO login VALUES
 ('rodrigo.diaz@ucu.edu.uy', '$2b$16$XwajVoE75BbZUDEf0aFsKuWIkDMudlreTmQ2uH1yeq.z5vCbbNbSG'), -- agostina2006
 ('martha.lauria@ucu.edu.uy', '$2b$16$XwajVoE75BbZUDEf0aFsKuWIkDMudlreTmQ2uH1yeq.z5vCbbNbSG'), -- agostina2006
 ('veronica.posadas@ucu.edu.uy', '$2b$16$XwajVoE75BbZUDEf0aFsKuWIkDMudlreTmQ2uH1yeq.z5vCbbNbSG'), -- agostina2006
-('saul.esquivel@ucu.edu.uy', '$2b$16$XwajVoE75BbZUDEf0aFsKuWIkDMudlreTmQ2uH1yeq.z5vCbbNbSG'); -- agostina2006
+('saul.esquivel@ucu.edu.uy', '$2b$16$XwajVoE75BbZUDEf0aFsKuWIkDMudlreTmQ2uH1yeq.z5vCbbNbSG'), -- agostina2006
+('paola.brun@ucu.edu.uy', '$2b$16$XwajVoE75BbZUDEf0aFsKuWIkDMudlreTmQ2uH1yeq.z5vCbbNbSG'), -- agostina2006
+('fabian.aguerre@ucu.edu.uy', '$2b$16$XwajVoE75BbZUDEf0aFsKuWIkDMudlreTmQ2uH1yeq.z5vCbbNbSG'); -- agostina2006
 
 INSERT INTO building VALUES
 ('Central', 'Av. 8 de Octubre 2738', 'Montevideo', 'https://pbs.twimg.com/media/ETCIXdTXQAEN2t8.jpg'),
@@ -232,7 +235,9 @@ INSERT INTO building VALUES
 ('Mullin', 'Cmdt. Braga 2745', 'Montevideo', 'https://upload.wikimedia.org/wikipedia/commons/0/0b/EDIFICIO_MULLIN_UCU.jpg'),
 ('San José', 'Av. 8 de Octubre 2733', 'Montevideo', 'https://medios.presidencia.gub.uy/tav_portal/2025/noticias/AN_361/fgr_01.jpg'),
 ('Semprún', 'Estero Bellaco 2771', 'Montevideo', 'https://ciemsa.com.uy/wp-content/uploads/2022/09/37_ucu_1.jpeg'),
-('Athanasius', 'Gral. Urquiza 2871', 'Montevideo', 'https://www.ucu.edu.uy/imgnoticias/202208/H950/140.jpeg');
+('Athanasius', 'Gral. Urquiza 2871', 'Montevideo', 'https://www.ucu.edu.uy/imgnoticias/202208/H950/140.jpeg'),
+('Central Pta. del Este', 'equina Florencia Pda. 7 y 1/2', 'Punta del Este', 'https://www.ucu.edu.uy/imgnoticias/202411/H950/4798.jpg'),
+('Central Salto', 'Artigas 1251', 'Salto', 'https://www.ucu.edu.uy/imgnoticias/202304/H950/1626.jpg');
 
 INSERT INTO shift VALUES
 (NULL, '08:00:00', '09:00:00'),
@@ -253,22 +258,28 @@ INSERT INTO shift VALUES
 INSERT INTO studyRoom VALUES
 (NULL, 'Sala 1', 'Central', 6, 'Libre', DEFAULT),
 (NULL, 'Sala 2', 'Central', 8, 'Posgrado', DEFAULT),
-(NULL, 'Sala 3', 'Central', 4, 'Docente', DEFAULT),
-(NULL, 'Sala 1', 'San Ignacio', 4, 'Libre', DEFAULT),
-(NULL, 'Sala 2', 'San Ignacio', 4, 'Posgrado', DEFAULT),
-(NULL, 'Sala 3', 'San Ignacio', 4, 'Docente', DEFAULT),
-(NULL, 'Sala 1', 'Mullin', 3, 'Libre', DEFAULT),
-(NULL, 'Sala 2', 'Mullin', 4, 'Posgrado', DEFAULT),
-(NULL, 'Sala 3', 'Mullin', 4, 'Docente', DEFAULT),
-(NULL, 'Sala 1', 'San José', 5, 'Libre', DEFAULT),
-(NULL, 'Sala 2', 'San José', 5, 'Posgrado', DEFAULT),
-(NULL, 'Sala 3', 'San José', 5, 'Docente', DEFAULT),
+(NULL, 'Sala 3', 'Central', 14, 'Docente', DEFAULT),
+(NULL, 'Sala 1', 'San Ignacio', 20, 'Libre', DEFAULT),
+(NULL, 'Sala 2', 'San Ignacio', 8, 'Posgrado', DEFAULT),
+(NULL, 'Sala 3', 'San Ignacio', 6, 'Docente', DEFAULT),
+(NULL, 'Sala 1', 'Mullin', 8, 'Libre', DEFAULT),
+(NULL, 'Sala 2', 'Mullin', 6, 'Posgrado', DEFAULT),
+(NULL, 'Sala 3', 'Mullin', 10, 'Docente', DEFAULT),
+(NULL, 'Sala 1', 'San José', 12, 'Libre', DEFAULT),
+(NULL, 'Sala 2', 'San José', 16, 'Posgrado', DEFAULT),
+(NULL, 'Sala 3', 'San José', 6, 'Docente', DEFAULT),
 (NULL, 'Sala 1', 'Semprún', 6, 'Libre', DEFAULT),
 (NULL, 'Sala 2', 'Semprún', 6, 'Posgrado', DEFAULT),
-(NULL, 'Sala 3', 'Semprún', 6, 'Docente', DEFAULT),
-(NULL, 'Sala 1', 'Athanasius', 5, 'Libre', DEFAULT),
-(NULL, 'Sala 2', 'Athanasius', 5, 'Posgrado', DEFAULT),
-(NULL, 'Sala 3', 'Athanasius', 5, 'Docente', DEFAULT);
+(NULL, 'Sala 3', 'Semprún', 10, 'Docente', DEFAULT),
+(NULL, 'Sala 1', 'Athanasius', 6, 'Libre', DEFAULT),
+(NULL, 'Sala 2', 'Athanasius', 10, 'Posgrado', DEFAULT),
+(NULL, 'Sala 3', 'Athanasius', 10, 'Docente', DEFAULT),
+(NULL, 'Sala 2', 'Central Salto', 6, 'Posgrado', DEFAULT),
+(NULL, 'Sala 3', 'Central Salto', 10, 'Docente', DEFAULT),
+(NULL, 'Sala 1', 'Central Salto', 6, 'Libre', DEFAULT),
+(NULL, 'Sala 2', 'Central Pta. del Este', 6, 'Posgrado', DEFAULT),
+(NULL, 'Sala 3', 'Central Pta. del Este', 10, 'Docente', DEFAULT),
+(NULL, 'Sala 1', 'Central Pta. del Este', 6, 'Libre', DEFAULT);
 
 INSERT INTO studyGroup VALUES
 (NULL, 'Equipo Programación I', 'Inactivo', 55897692),
@@ -324,16 +335,16 @@ INSERT INTO student VALUES
 (55299080, 7, 'Montevideo'),
 (56309531, 6, 'Montevideo'),
 (56902752, 6, 'Montevideo'),
-(59283629, 6, 'Montevideo'),
-(52435831, 6, 'Montevideo'),
-(54729274, 3, 'Montevideo'),
-(52737428, 3, 'Montevideo'),
-(57389261, 4, 'Montevideo');
+(59283629, 6, 'Punta del Este'),
+(52435831, 6, 'Punta del Este'),
+(54729274, 3, 'Punta del Este'),
+(52737428, 3, 'Salto'),
+(57389261, 4, 'Salto');
 
 INSERT INTO professor VALUES
-(36907777, 'Montevideo'),
-(34567836, 'Montevideo'),
-(45615815, 'Montevideo'),
+(36907777, 'Punta del Este'),
+(34567836, 'Salto'),
+(45615815, 'Punta del Este'),
 (45673829, 'Montevideo'),
 (32749352, 'Montevideo');
 
@@ -341,7 +352,9 @@ INSERT INTO administrator VALUES
 (12345678);
 
 INSERT INTO librarian VALUES
-(32124436, 'Central');
+(32124436, 'Central'),
+(25081560, 'Central Pta. del Este'),
+(18595003, 'Central Salto');
 
 INSERT INTO reservation VALUES
 (1, 4, '2024-04-29', 5, 32124436, '2024-04-26', 'Finalizada'),
