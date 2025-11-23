@@ -115,6 +115,8 @@ def pageNotFound(error):
 @app.route('/user/<mail>/sanctions', methods=['GET'])
 @token_required
 def getUserMailSanctions(mail):
+    conn = connection(request.role)
+    cursor = conn.cursor()
     try:
         # solo bibliotecario o admin
         if not user_has_role("librarian", "administrator"):
@@ -123,8 +125,6 @@ def getUserMailSanctions(mail):
                 "description": "Usuario no autorizado",
             }), 401
 
-        conn = connection(request.role)
-        cursor = conn.cursor()
         cursor.execute("""
             SELECT 
                 u.mail, 
@@ -138,7 +138,6 @@ def getUserMailSanctions(mail):
         """, (mail,))
 
         results = cursor.fetchall()
-        cursor.close()
 
         sanctions = []
         for row in results:
@@ -150,16 +149,23 @@ def getUserMailSanctions(mail):
                 'endDate': row['endDate']
             })
 
+        conn.close()
+
         return jsonify({'sanctions': sanctions, 'success': True}), 200
 
     except Exception as ex:
         return jsonify({'description': 'Error', 'error': str(ex)}), 500
+    finally:
+        cursor.close()
+        conn.close()
 
 
 # Conseguir todas las sanciones de un usuario por ci
 @app.route('/user/<ci>/sanctions', methods=['GET'])
 @token_required
 def getUserCiSanctions(ci):
+    conn = connection(request.role)
+    cursor = conn.cursor()
     try:
         if not user_has_role("librarian", "administrator"):
             return jsonify({
@@ -173,8 +179,6 @@ def getUserCiSanctions(ci):
                 "description": msg
             }), 403
 
-        conn = connection(request.role)
-        cursor = conn.cursor()
         ci = int(ci)
 
         cursor.execute("""
@@ -195,6 +199,8 @@ def getUserCiSanctions(ci):
                 'endDate': row['endDate']
             })
 
+        conn.close()
+
         return jsonify({'sanctions': sanctions, 'success': True}), 200
 
     except Exception as ex:
@@ -204,12 +210,17 @@ def getUserCiSanctions(ci):
             'description': 'No se pudieron ver tus sanciones',
             'error': str(ex)
         }), 500
+    finally:
+        cursor.close()
+        conn.close()
 
 
 # Conseguir todas las sanciones de un usuario por token
 @app.route('/user/sanctions', methods=['GET'])
 @token_required
 def getMySanctions():
+    conn = connection(request.role)
+    cursor = conn.cursor()
     try:
         # solo estudiantes y docentes
         if not user_has_role("student", "professor"):
@@ -217,9 +228,7 @@ def getMySanctions():
                 "success": False,
                 "description": "Usuario no autorizado",
             }), 401
-
-        conn = connection(request.role)
-        cursor = conn.cursor()
+        
         ci = request.ci
 
         is_active, msg = check_user_is_active(ci, request.role)
@@ -247,6 +256,7 @@ def getMySanctions():
                 'endDate': row['endDate']
             })
 
+        conn.close()
         return jsonify({'sanctions': sanctions, 'success': True}), 200
 
     except Exception as ex:
@@ -256,7 +266,9 @@ def getMySanctions():
             'description': 'No se pudieron ver tus sanciones',
             'error': str(ex)
         }), 500
-
+    finally:
+        cursor.close()
+        conn.close()
 
 
 @app.route('/cancelReservation/<studyGroupId>&<studyRoomId>&<date>&<shiftId>', methods=['DELETE'])
@@ -270,8 +282,6 @@ def cancelReservation(studyGroupId, studyRoomId, date, shiftId):
                 "success": False,
                 "description": "Usuario no autorizado",
             }), 401
-
-
 
         if not all([studyGroupId, studyRoomId, date, shiftId]):
             return jsonify({
@@ -430,10 +440,57 @@ def postNewSanction():
 
         conn.commit()
         cursor.close()
+        conn.close()
 
         return jsonify({
             'success': True,
             'description': 'Sanción creada correctamente'
+        }), 200
+    
+    except Exception as ex:
+        return jsonify({
+            'success': False,
+            'description': 'No se pudo procesar la solicitud',
+            'error': str(ex)
+        }), 500
+
+# Eliminar sanción   
+@app.route('/deleteSanction/<sanctionId>', methods=['DELETE'])
+@token_required
+def deleteSanction(sanctionId):
+    try:
+        if not user_has_role("librarian"):
+            return jsonify({
+                "success": False,
+                "description": "Usuario no autorizado",
+            }), 401
+        
+        librarianCi = request.ci
+        
+        is_active, msg = check_user_is_active(librarianCi, request.role)
+        if not is_active:
+            return jsonify({
+                "success": False,
+                "description": msg
+            }), 403
+
+        conn = connection(request.role)
+        cursor = conn.cursor()
+
+        sanctionId = int(sanctionId)
+
+        cursor.execute(''' 
+            DELETE FROM sanction
+            WHERE sanctionId = %s
+        ''', (sanctionId,))
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        return jsonify({
+            'success': True,
+            'description': 'Se ha eliminado la sanción correctamente'
         }), 200
     
     except Exception as ex:
@@ -489,11 +546,14 @@ def getDaySanctions():
                 'sanciones': []
             })
 
+        cursor.close()
+        conn.close()
+
         return jsonify({
             'success': True,
             'description': 'Sanciones del día de hoy',
             'sanciones': sanctions
-        })
+        }), 200
 
     except Exception as ex:
         return jsonify({
@@ -727,6 +787,8 @@ def getUserByCareer(careerID):
                 'success': False,
                 'message': 'No existen usuarios para esa carrera'
             }), 404
+        
+        conn.close()
 
     except Exception as ex:
         return jsonify({
@@ -759,6 +821,7 @@ def getRooms(building):
         rooms = cursor.fetchall()
 
         cursor.close()
+        conn.close()
 
         return jsonify({
             'success': True,
@@ -849,7 +912,6 @@ def getUsers():
         return jsonify({"description": "Error", "error": str(ex)})
 
 
-
 # Conseguir todas las carreras
 @app.route('/career', methods=['GET'])
 def getCareers():
@@ -870,6 +932,7 @@ def getCareers():
                 'type': row['type']
             })
 
+        conn.close()
         return jsonify({'careers': careers, 'success': True}), 200
 
     except Exception as ex:
@@ -1195,12 +1258,13 @@ def getUserGroupRequest():
        cursor.execute("SELECT studyGroup.studyGroupName, groupRequest.requestDate, studyGroup.studyGroupId FROM groupRequest JOIN studyGroup on studyGroup.studyGroupId = groupRequest.studyGroupId WHERE groupRequest.status = 'Pendiente' AND receiver = %s", (ci,))
        result = cursor.fetchall()
 
-
        if not result:
             return jsonify({
                 'success': True,
                 'grupoRequest': []
             }), 200
+       
+       conn.close()
 
        return jsonify({
            'success': True,
@@ -1880,6 +1944,7 @@ def newReservation():
         """, (studyGroupId, studyRoomId, date, shiftId, reservationCreateDate.date(), state))
 
         conn.commit()
+        conn.close()
 
         return jsonify({
             'success': True,
@@ -1897,7 +1962,6 @@ def newReservation():
 @app.route('/getAllGroups', methods=['GET'])
 @token_required
 def getGroups():
-
     try:
         if not user_has_role("librarian"):
             return jsonify({
@@ -1946,6 +2010,9 @@ def getGroups():
                 "status": r["status"],
                 "leaderName": f'{r["name"]} {r["lastName"]}',
             })
+
+        cursor.close()
+        conn.close()
 
         return jsonify({
             "success": True,
@@ -2322,6 +2389,8 @@ def getGroupUser(groupId):
                     'mail': row['memberMail']
                 })
 
+        cursor.close()
+        conn.close()
         return jsonify({
             'success': True,
             'grupo': group_info
@@ -2373,6 +2442,8 @@ def getGroupMembers(groupId):
                 "ci": row['ci']
             })
 
+        cursor.close()
+        conn.close()
         return jsonify({
             'success': True,
             'members': members
@@ -2404,9 +2475,6 @@ def sendGroupRequest():
         studyGroupId = data.get('studyGroupId')
         receiver = data.get('receiver')
         role = request.role
-
-
-
 
         is_active, msg = check_user_is_active(ci_sender, request.role)
         if not is_active:
@@ -2617,7 +2685,6 @@ def getUserByNameLastMail(name, lastName, mail):
         lastName = str(lastName)
         mail = str(mail)
 
-
         cursor.execute('''
             SELECT 
                 u.ci AS ci, 
@@ -2650,6 +2717,8 @@ def getUserByNameLastMail(name, lastName, mail):
                 'userProfilePicture': results['profilePicture']
             }
 
+            cursor.close()
+            conn.close()
             return jsonify({
                 'success': True,
                 'description': 'Estudiante encontrado',
@@ -2685,7 +2754,7 @@ def getStudyRooms():
 
         rooms = cursor.fetchall()
         cursor.close()
-
+        conn.close()
         return jsonify({
             "success": True,
             "description": "Lista de todas las salas",
@@ -2728,7 +2797,7 @@ def getFreeRooms(building, date):
                 'success': False,
                 'description': 'No se puede elegir un sábado o domingo'
             }), 400
-
+    
         if today.weekday() in (5, 6):
             allowed_week = (today + timedelta(days=(7 - today.weekday()))).isocalendar()[:2]
         else:
@@ -3601,23 +3670,12 @@ def getAvailableReservationsByDate():
             WHERE r.date = %s
               AND r.assignedLibrarian IS NULL AND sR.buildingName = %s;;
             ''',
-            (today, librarian_building)
+            (today, librarian_building,)
         )
 
         results = cursor.fetchall()
         reservations = []
-
-
-        if not results:
-            cursor.close()
-            conn.close()
-            return jsonify({
-                'success': True,
-                'description': 'No hay reservas disponibles para hoy',
-                'reservations': []
-            }), 200
-
-    
+        
         for row in results:
             reservations.append({
                 "start": str(row['start']),
@@ -3978,17 +4036,60 @@ def patchFinishedReservations():
         shift = data.get('shift')
 
         cursor.execute(''' 
+            SELECT r.studyGroupId
+            FROM reservation r
+            WHERE r.shiftId = %s
+        ''', (shift,))
+        groupResult = cursor.fetchall()
+
+        if not groupResult:
+            return jsonify({
+                'success': False,
+                'description': f'No se encontraron grupos con reservas en el turno {shift}'
+            }), 404
+        
+        groups = []
+        for row in groupResult:
+            groups.append(row['studyGroupId'])
+
+        for group in groups:
+            cursor.execute(''' 
+                UPDATE studyGroup
+                SET status = 'Inactivo'
+                WHERE studyGroupId = %s
+            ''', (group,))
+
+        cursor.execute(''' 
             UPDATE reservation
             SET state = 'Finalizada'
             WHERE shiftId = %s AND date = %s
         ''', (shift, today))
         conn.commit()
 
+        cursor.execute(''' 
+            SELECT sG.studyGroupId
+            FROM studyGroup sG
+            WHERE sG.status = 'Inactivo'
+        ''')
+
+        inactiveResult = cursor.fetchall()
+        if not inactiveResult:
+            return jsonify({
+                'success': False,
+                'description': 'Algo no ha funcionado'
+            })
+        
+        inactives = []
+        for row in inactiveResult:
+            inactives.append(row['studyGroupId'])
+
         return jsonify({
             'success': True,
             'description': f'Reservas del turno {shift} finalizadas',
-            'shift': shift
-        })
+            'shift': shift,
+            'inactives': inactives,
+            'today': today
+        }), 200
 
     except Exception as ex:
         return jsonify({
@@ -5220,6 +5321,7 @@ def denyGroupRequest(groupId):
         ''', (ci, groupId))
         conn.commit()
         cursor.close()
+        conn.close()
 
         return jsonify({
             'success': True,
@@ -5291,6 +5393,7 @@ def deleteUserById(studyGroupId, userId):
         """, (studyGroupId, userId))
         conn.commit()
         cursor.close()
+        conn.close()
 
         return jsonify({
             "success": True,
@@ -5718,6 +5821,7 @@ def createGroup():
 
         row = cursor.fetchone()
         cursor.close()
+        conn.close()
 
         return jsonify({
             "success": True,
@@ -5913,6 +6017,9 @@ def patchUpdateDataUser():
             )
             conn.commit()
 
+        cursor.close()
+        conn.close()
+
         return jsonify({
             'success': True,
             'description': 'Usuario y roles actualizados correctamente'
@@ -6020,6 +6127,7 @@ def updateMyUser():
             conn.commit()
 
         cursor.close()
+        conn.close()
 
         return jsonify({
             'success': True,
