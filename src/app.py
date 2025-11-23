@@ -2651,21 +2651,44 @@ def getFreeRooms(building, date):
                 'description': 'Solo se puede ver salas para la semana actual'
             }), 400
 
+        allowed_types = ['Libre']
+
+        if request.role == "professor":
+            allowed_types.append('Docente')
+
         cursor.execute('''
+            SELECT 1
+            FROM student st
+            JOIN career c ON st.careerId = c.careerId
+            WHERE st.ci = %s AND c.type = 'Posgrado'
+            LIMIT 1;
+        ''', (request.ci,))
+
+        if cursor.fetchone():
+            allowed_types.append('Posgrado')
+
+        placeholders = ','.join(['%s'] * len(allowed_types))
+
+        query = f'''
             SELECT 
                 sR.studyRoomId,
                 sR.roomName AS Sala,
                 sR.buildingName AS Edificio,
                 sR.capacity AS Capacidad,
+                sR.roomType,
                 s.shiftId,
                 DATE_FORMAT(s.startTime, '%%H:%%i') AS Inicio,
                 DATE_FORMAT(s.endTime, '%%H:%%i') AS Fin
             FROM studyRoom sR
             JOIN shift s
-            WHERE sR.buildingName = %s AND sR.status = 'Activo'
+            WHERE sR.buildingName = %s 
+              AND sR.status = 'Activo'
+              AND sR.roomType IN ({placeholders})
             ORDER BY s.startTime;
-        ''', (building,))
+        '''
 
+        params = [building] + allowed_types
+        cursor.execute(query, params)
         allRooms = cursor.fetchall()
 
         cursor.execute('''
@@ -2690,7 +2713,8 @@ def getFreeRooms(building, date):
                 "end": row['Fin'],
                 "date": date,
                 "capacity": row['Capacidad'],
-                "status": "Ocupado" if is_reserved else "Disponible"
+                "status": "Ocupado" if is_reserved else "Disponible",
+                "roomType": row['roomType']
             })
 
         return jsonify({
@@ -2707,8 +2731,6 @@ def getFreeRooms(building, date):
             "error": str(e)
         }), 500
 
-
-# Devolverá todos los turnos y salas libres dependiendo del turno que se haya elegido o de la sala que se haya elegido
 @app.route('/roomShift/<selectedGroup>&<building>&<date>&<shiftId>&<roomId>', methods=['GET'])
 @token_required
 def roomShift(selectedGroup, building, date, shiftId, roomId):
@@ -2771,12 +2793,40 @@ def roomShift(selectedGroup, building, date, shiftId, roomId):
         min_capacity = group_members
         max_capacity = group_members * 2
 
-        # ACÁ VA A DEVOLVER TODAS LAS SALAS Y TURNOS SI NO HAY NADA SELECCIONADO DE LOS TURNOS Y SALAS
+        allowed_room_types = ['Libre']
+
+        cursor.execute("""
+            SELECT DISTINCT c.type
+            FROM student s
+            JOIN career c ON s.careerId = c.careerId
+            WHERE s.ci = %s
+        """, (request.ci,))
+        career_types = {row['type'] for row in cursor.fetchall()}
+
+        if 'Posgrado' in career_types:
+            allowed_room_types.append('Posgrado')
+
+        cursor.execute("""
+            SELECT 1
+            FROM professor
+            WHERE ci = %s
+            LIMIT 1
+        """, (request.ci,))
+        if cursor.fetchone():
+            allowed_room_types.append('Docente')
+
+        placeholders = ",".join(["%s"] * len(allowed_room_types))
+
         if not shiftId and not roomId:
-            cursor.execute('''
+            params_salas = [building, min_capacity, max_capacity] + allowed_room_types + [date]
+            cursor.execute(f'''
                 SELECT sR.roomName AS Sala, sR.capacity AS Capacidad, sR.studyRoomId AS SalaId
                 FROM studyRoom sR
-                WHERE sR.buildingName = %s AND sR.status = 'Activo' AND sR.capacity BETWEEN %s AND %s AND EXISTS (
+                WHERE sR.buildingName = %s
+                  AND sR.status = 'Activo'
+                  AND sR.capacity BETWEEN %s AND %s
+                  AND sR.roomType IN ({placeholders})
+                  AND EXISTS (
                     SELECT *
                     FROM shift sh
                     WHERE sh.shiftId NOT IN (
@@ -2784,26 +2834,32 @@ def roomShift(selectedGroup, building, date, shiftId, roomId):
                         FROM reservation r
                         WHERE r.date = %s AND r.studyRoomId = sR.studyRoomId
                     )
-                )
+                  )
                 ORDER BY Sala
-            ''', (building, min_capacity, max_capacity, date))
+            ''', params_salas)
 
             salas_libres = cursor.fetchall()
 
-            cursor.execute('''
-                SELECT s.shiftId, DATE_FORMAT(s.startTime, '%%H:%%i') AS Inicio, DATE_FORMAT(s.endTime, '%%H:%%i') AS Fin
+            params_turnos = [building] + allowed_room_types + [date]
+            cursor.execute(f'''
+                SELECT s.shiftId,
+                       DATE_FORMAT(s.startTime, '%%H:%%i') AS Inicio,
+                       DATE_FORMAT(s.endTime, '%%H:%%i') AS Fin
                 FROM shift s
                 WHERE EXISTS (
                     SELECT *
                     FROM studyRoom sr
-                    WHERE sr.buildingName = %s AND sr.status = 'Activo' AND sr.studyRoomId NOT IN (
+                    WHERE sr.buildingName = %s
+                      AND sr.status = 'Activo'
+                      AND sr.roomType IN ({placeholders})
+                      AND sr.studyRoomId NOT IN (
                         SELECT r.studyRoomId
                         FROM reservation r
                         WHERE r.date = %s AND r.shiftId = s.shiftId
-                    )
+                      )
                 )
                 ORDER BY Inicio
-            ''', (building, date))
+            ''', params_turnos)
 
             turnos_libres = cursor.fetchall()
 
@@ -2824,18 +2880,22 @@ def roomShift(selectedGroup, building, date, shiftId, roomId):
                 } for s in turnos_libres]
             }), 200
 
-        # ACÁ VA A DEVOLVER TODAS LAS SALAS LIBRES PARA UN TURNO
         if shiftId and not roomId:
-            cursor.execute('''
+            params_salas = [building, min_capacity, max_capacity] + allowed_room_types + [date, shiftId]
+            cursor.execute(f'''
                 SELECT sR.roomName AS Sala, sR.capacity AS Capacidad, sR.studyRoomId AS SalaId
                 FROM studyRoom sR
-                WHERE sR.buildingName = %s AND sR.status = 'Activo' AND sR.capacity BETWEEN %s AND %s AND sR.studyRoomId NOT IN (
+                WHERE sR.buildingName = %s
+                  AND sR.status = 'Activo'
+                  AND sR.capacity BETWEEN %s AND %s
+                  AND sR.roomType IN ({placeholders})
+                  AND sR.studyRoomId NOT IN (
                     SELECT r.studyRoomId
                     FROM reservation r
                     WHERE r.date = %s AND r.shiftId = %s
-                )
+                  )
                 ORDER BY Sala
-            ''', (building, min_capacity, max_capacity, date, shiftId))
+            ''', params_salas)
 
             salas = cursor.fetchall()
 
@@ -2850,20 +2910,24 @@ def roomShift(selectedGroup, building, date, shiftId, roomId):
                 } for r in salas],
             }), 200
 
-        # ACÁ VA A DEVOLVER TODOS LOS TURNOS LIBRES PARA UNA SALA
-
         if roomId and not shiftId:
-            cursor.execute('''
-                SELECT s.shiftId, DATE_FORMAT(s.startTime, '%%H:%%i') AS Inicio, DATE_FORMAT(s.endTime, '%%H:%%i') AS Fin
+            params_turnos = [date, roomId] + allowed_room_types
+            cursor.execute(f'''
+                SELECT s.shiftId,
+                       DATE_FORMAT(s.startTime, '%%H:%%i') AS Inicio,
+                       DATE_FORMAT(s.endTime, '%%H:%%i') AS Fin
                 FROM shift s
                 WHERE s.shiftId NOT IN (
                     SELECT r.shiftId
                     FROM reservation r
                     JOIN studyRoom sr ON sr.studyRoomId = r.studyRoomId
-                    WHERE r.date = %s AND sr.studyRoomId = %s AND sr.status = 'Activo' 
+                    WHERE r.date = %s
+                      AND sr.studyRoomId = %s
+                      AND sr.status = 'Activo'
+                      AND sr.roomType IN ({placeholders})
                 )
                 ORDER BY Inicio
-            ''', (date, roomId))
+            ''', params_turnos)
 
             turnos = cursor.fetchall()
 
@@ -2878,25 +2942,31 @@ def roomShift(selectedGroup, building, date, shiftId, roomId):
                 } for r in turnos]
             }), 200
 
-        # ACÁ VA A DEVOLVER LA INTERSECCION DE AMBOS
-
         if shiftId and roomId:
-            cursor.execute('''
+            params_sala = [building, roomId, min_capacity, max_capacity] + allowed_room_types + [date, shiftId]
+            cursor.execute(f'''
                 SELECT sR.roomName AS Sala, sR.capacity AS Capacidad, sR.studyRoomId AS SalaId
                 FROM studyRoom sR
-                WHERE sR.buildingName = %s AND sR.studyRoomId = %s AND sR.status = 'Activo' AND sR.capacity BETWEEN %s AND %s AND sR.studyRoomId NOT IN (
+                WHERE sR.buildingName = %s
+                  AND sR.studyRoomId = %s
+                  AND sR.status = 'Activo'
+                  AND sR.capacity BETWEEN %s AND %s
+                  AND sR.roomType IN ({placeholders})
+                  AND sR.studyRoomId NOT IN (
                     SELECT r.studyRoomId
                     FROM reservation r
                     WHERE r.date = %s AND r.shiftId = %s
-                )
-            ''', (building, roomId, min_capacity, max_capacity, date, shiftId))
+                  )
+            ''', params_sala)
 
             sala = cursor.fetchone()
 
             turno = None
             if sala:
                 cursor.execute('''
-                    SELECT s.shiftId, DATE_FORMAT(s.startTime, '%%H:%%i') AS Inicio, DATE_FORMAT(s.endTime, '%%H:%%i') AS Fin
+                    SELECT s.shiftId,
+                           DATE_FORMAT(s.startTime, '%%H:%%i') AS Inicio,
+                           DATE_FORMAT(s.endTime, '%%H:%%i') AS Fin
                     FROM shift s
                     WHERE s.shiftId = %s
                 ''', (shiftId,))
@@ -2907,13 +2977,11 @@ def roomShift(selectedGroup, building, date, shiftId, roomId):
             return jsonify({
                 "success": True,
                 "description": "Salas y turnos libres",
-
                 "salas": [{
                     "roomId": sala["SalaId"],
                     "roomName": sala["Sala"],
                     "capacity": sala["Capacidad"]
                 }] if sala else [],
-
                 "turnos": [{
                     "shiftId": turno["shiftId"],
                     "start": turno["Inicio"],
