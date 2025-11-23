@@ -1610,7 +1610,7 @@ def newReservation():
         cursor.execute("""
             SELECT COUNT(*) AS totalRequests
             FROM groupRequest
-            WHERE studyGroupId = %s AND (status = 'Aceptada' OR status = 'Pendiente')
+            WHERE studyGroupId = %s AND status = 'Aceptada'
         """, (studyGroupId,))
 
         req_total_row = cursor.fetchone()
@@ -1622,7 +1622,6 @@ def newReservation():
             FROM groupRequest
             WHERE studyGroupId = %s
               AND status = 'Aceptada'
-              AND isValid = FALSE
         """, (studyGroupId,))
 
         req_accepted_row = cursor.fetchone()
@@ -1739,6 +1738,7 @@ def newReservation():
             'description': 'Error en la creación de la reserva',
             'error': str(ex)
         }), 500
+
 @app.route('/getAllGroups', methods=['GET'])
 @token_required
 def getGroups():
@@ -2222,7 +2222,7 @@ def sendGroupRequest():
         active_res = cursor.fetchone()
 
         if active_res:
-            studyRoomId = active_res["studyRoomId"]
+            studyRoomId = active_res['active_res']
 
             cursor.execute("""
                 SELECT capacity
@@ -2247,7 +2247,7 @@ def sendGroupRequest():
             """, (studyGroupId,))
 
             row = cursor.fetchone()
-            accepted = row["accepted_count"]
+            accepted = row["current_total"]
 
             current_total = accepted + 1
 
@@ -2572,14 +2572,14 @@ def roomShift(selectedGroup, building, date, shiftId, roomId):
         """, (selectedGroup,))
 
         req_row = cursor.fetchone()
-        total_requests = req_row["totalRequests"] if req_row else 0
+        totalRequests = req_row["totalRequests"] if req_row else 0
 
-        group_members = total_requests + 1
+        group_members = totalRequests + 1
 
         if group_members < 3:
             return jsonify({
                 "success": False,
-                "description": "El grupo debe tener al menos 3 integrantes"
+                "description": 'El grupo debe tener al menos 3 integrantes'
             }), 400
 
         min_capacity = group_members
@@ -4565,11 +4565,54 @@ def acceptUserRequest(groupId):
         result = cursor.fetchone()
 
         if result['cant'] >= 3:
-            denyGroupRequest(groupId)
             return jsonify({
                 'success': False,
                 'description': f'Ya perteneces a mas de 3 grupos'
             })
+
+        cursor.execute("""
+                    SELECT studyRoomId AS active_res
+                    FROM reservation
+                    WHERE studyGroupId = %s AND state = 'Activa'
+                """, (groupId,))
+
+        active_res = cursor.fetchone()
+
+        if active_res:
+            studyRoomId = active_res['active_res']
+
+            cursor.execute("""
+                        SELECT capacity
+                        FROM studyRoom
+                        WHERE studyRoomId = %s
+                    """, (studyRoomId,))
+
+            room = cursor.fetchone()
+
+            if not room:
+                return jsonify({
+                    "success": False,
+                    "description": "No se encontró la sala asociada a la reserva activa"
+                }), 500
+
+            capacity = room["capacity"]
+
+            cursor.execute("""
+                        SELECT COUNT(*) AS current_total
+                        FROM groupRequest
+                        WHERE studyGroupId = %s AND status = 'Aceptada'
+                    """, (groupId,))
+
+            row = cursor.fetchone()
+            accepted = row["current_total"]
+
+            current_total = accepted + 1
+
+            if current_total >= capacity:
+                return jsonify({
+                    "success": False,
+                    "description": "El grupo ya alcanzó el maximo permitido por la sala de la reserva activa"
+                }), 400
 
         cursor.execute("""
             SELECT MAX(sr.capacity) AS maxCapacity
@@ -4600,7 +4643,6 @@ def acceptUserRequest(groupId):
         current_members = members_row['currentMembers']
 
         if current_members >= max_capacity:
-            denyGroupRequest(groupId)
             return jsonify({
                 'success': False,
                 'description': 'el grupo esta lleno'
