@@ -35,3 +35,19 @@
 
 USUARIO ADMIN:
 veronica.posadas@ucu.edu.uy
+
+USUARIO BIBLIOTECARIO:
+lourdes.machado@ucu.edu.uy
+
+USUARIO PROFESOR:
+saul.esquivel@ucu.edu.uy
+
+USUARIO ESTUDIANTE:
+agostina.etchebarren@correo.ucu.edu.uy
+thiago.garcia@correo.ucu.edu.uy
+santiago.aguerre@correo.ucu.edu.uy
+
+CONTRASEÑAS:
+agostina2006
+
+NO SE ENOJEN ERA UNA CONTRASEÑA QUE COMO LA EMPEZAMOS A USAR TODOS AL INICIO NOS QUEDO ENTONCES QUEDO ESA PARA TODO :)
