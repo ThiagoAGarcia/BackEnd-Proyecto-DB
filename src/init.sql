@@ -33,6 +33,18 @@ CREATE TABLE career (
     FOREIGN KEY (facultyId) REFERENCES faculty(facultyId)
 );
 
+DELIMITER $$
+    CREATE TRIGGER validate_year_academicPlan
+    BEFORE INSERT ON career
+    FOR EACH ROW
+    BEGIN
+    IF NEW.planYear <= 1985 OR NEW.planYear > YEAR(CURDATE()) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'El año del plan debe estar entre 1985 y el año actual.';
+    END IF;
+    END$$
+DELIMITER ;
+
 CREATE TABLE login (
     mail VARCHAR(50) PRIMARY KEY,
     password VARCHAR(200) NOT NULL,
@@ -56,7 +68,7 @@ CREATE TABLE shift (
 
 CREATE TABLE studyRoom (
 	studyRoomId INT PRIMARY KEY AUTO_INCREMENT,
-	roomName VARCHAR(32) NOT NULL,
+	roomName VARCHAR(30) NOT NULL,
 	buildingName VARCHAR(32),
 	capacity INT NOT NULL CHECK ( capacity > 0 ),
     roomType ENUM('Libre', 'Posgrado', 'Docente') DEFAULT 'Libre' NOT NULL,
@@ -244,6 +256,7 @@ INSERT INTO shift VALUES
 (NULL, '21:00:00', '22:00:00'),
 (NULL, '22:00:00', '23:00:00');
 
+
 INSERT INTO studyRoom VALUES
 (NULL, 'Sala 1 Libre', 'Central', 6, 'Libre', DEFAULT),
 (NULL, 'Sala 2 Posgrado', 'Central', 8, 'Posgrado', DEFAULT),
@@ -316,7 +329,6 @@ INSERT INTO studyGroupParticipant VALUES
 (11, 52435831),
 (11, 54729274);
 
-
 INSERT INTO student VALUES
 (55897692, 6, 'Montevideo'),
 (55531973, 6, 'Montevideo'),
@@ -327,7 +339,7 @@ INSERT INTO student VALUES
 (59283629, 6, 'Punta del Este'),
 (52435831, 6, 'Punta del Este'),
 (54729274, 3, 'Punta del Este'),
-(52737428, 9, 'Salto'),
+(52737428, 3, 'Salto'),
 (57389261, 4, 'Salto');
 
 INSERT INTO professor VALUES
@@ -346,13 +358,13 @@ INSERT INTO librarian VALUES
 (18595003, 'Central Salto');
 
 INSERT INTO reservation VALUES
-(1, 4, '2025-11-24', 5, 32124436, '2024-04-26', 'Finalizada'),
-(2, 4, '2025-11-25', 6, 32124436, '2024-04-25', 'Finalizada'),
-(1, 4, '2025-11-26', 7, 32124436, '2024-05-15', 'Finalizada'),
-(5, 4, '2025-11-27', 9, 32124436, '2025-05-20', 'Finalizada'),
-(11, 7, '2025-11-09', 6, 32124436, '2025-06-07', 'Finalizada'),
-(4, 10, '2025-11-15', 5, 32124436, '2025-07-14', 'Finalizada'),
-(7, 7, '2025-11-31', 8, 32124436, '2025-10-27', 'Activa');
+(1, 4, '2024-04-29', 5, 32124436, '2024-04-26', 'Finalizada'),
+(2, 4, '2024-04-29', 6, 32124436, '2024-04-25', 'Finalizada'),
+(1, 4, '2024-05-17', 7, 32124436, '2024-05-15', 'Finalizada'),
+(5, 4, '2025-05-21', 9, 32124436, '2025-05-20', 'Finalizada'),
+(11, 7, '2025-06-09', 6, 32124436, '2025-06-07', 'Finalizada'),
+(4, 10, '2025-07-15', 5, 32124436, '2025-07-14', 'Finalizada'),
+(7, 7, '2025-10-31', 8, 32124436, '2025-10-27', 'Activa');
 
 INSERT INTO groupRequest VALUES
 (1, 56309531, 'Aceptada', FALSE, '2024-04-01 10:00:00'),
@@ -399,6 +411,7 @@ CREATE USER 'student_user'@'%' IDENTIFIED BY 'Student19976543!';
 CREATE USER 'professor_user'@'%' IDENTIFIED BY 'Professor19976543!';
 CREATE USER 'administrator_user'@'%' IDENTIFIED BY 'Admin19976543!';
 CREATE USER 'librarian_user'@'%' IDENTIFIED BY 'Librarian19976543!';
+
 
 # GRANTS UNKNOWN
 GRANT INSERT, SELECT ON ObligatorioBDD.login TO 'unknown_user'@'%';
