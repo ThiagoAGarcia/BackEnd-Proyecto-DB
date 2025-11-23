@@ -257,30 +257,30 @@ INSERT INTO shift VALUES
 (NULL, '22:00:00', '23:00:00');
 
 INSERT INTO studyRoom VALUES
-(NULL, 'Sala 1 Libre', 'Central', 6, 'Libre', DEFAULT),
-(NULL, 'Sala 2 Posgrado', 'Central', 8, 'Posgrado', DEFAULT),
-(NULL, 'Sala 3 Docente', 'Central', 14, 'Docente', DEFAULT),
-(NULL, 'Sala 1 Libre', 'San Ignacio', 20, 'Libre', DEFAULT),
-(NULL, 'Sala 2 Posgrado', 'San Ignacio', 8, 'Posgrado', DEFAULT),
-(NULL, 'Sala 3 Docente', 'San Ignacio', 6, 'Docente', DEFAULT),
-(NULL, 'Sala 1 Libre', 'Mullin', 8, 'Libre', DEFAULT),
-(NULL, 'Sala 2 Posgrado', 'Mullin', 6, 'Posgrado', DEFAULT),
-(NULL, 'Sala 3 Docente', 'Mullin', 10, 'Docente', DEFAULT),
-(NULL, 'Sala 1 Libre', 'San José', 12, 'Libre', DEFAULT),
-(NULL, 'Sala 2 Posgrado', 'San José', 16, 'Posgrado', DEFAULT),
-(NULL, 'Sala 3 Docente', 'San José', 6, 'Docente', DEFAULT),
-(NULL, 'Sala 1 Libre', 'Semprún', 6, 'Libre', DEFAULT),
-(NULL, 'Sala 2 Posgrado', 'Semprún', 6, 'Posgrado', DEFAULT),
-(NULL, 'Sala 3 Docente', 'Semprún', 10, 'Docente', DEFAULT),
-(NULL, 'Sala 1 Libre', 'Athanasius', 6, 'Libre', DEFAULT),
-(NULL, 'Sala 2 Posgrado', 'Athanasius', 10, 'Posgrado', DEFAULT),
-(NULL, 'Sala 3 Docente', 'Athanasius', 10, 'Docente', DEFAULT),
-(NULL, 'Sala 2 Posgrado', 'Central Salto', 6, 'Posgrado', DEFAULT),
-(NULL, 'Sala 3 Docente', 'Central Salto', 10, 'Docente', DEFAULT),
-(NULL, 'Sala 1 Libre', 'Central Salto', 6, 'Libre', DEFAULT),
-(NULL, 'Sala 2 Posgrado', 'Central Pta. del Este', 6, 'Posgrado', DEFAULT),
-(NULL, 'Sala 3 Docente', 'Central Pta. del Este', 10, 'Docente', DEFAULT),
-(NULL, 'Sala 1 Libre', 'Central Pta. del Este', 6, 'Libre', DEFAULT);
+(NULL, 'Sala 1', 'Central', 6, 'Libre', DEFAULT),
+(NULL, 'Sala 2', 'Central', 8, 'Posgrado', DEFAULT),
+(NULL, 'Sala 3', 'Central', 14, 'Docente', DEFAULT),
+(NULL, 'Sala 1', 'San Ignacio', 20, 'Libre', DEFAULT),
+(NULL, 'Sala 2', 'San Ignacio', 8, 'Posgrado', DEFAULT),
+(NULL, 'Sala 3', 'San Ignacio', 6, 'Docente', DEFAULT),
+(NULL, 'Sala 1', 'Mullin', 8, 'Libre', DEFAULT),
+(NULL, 'Sala 2', 'Mullin', 6, 'Posgrado', DEFAULT),
+(NULL, 'Sala 3', 'Mullin', 10, 'Docente', DEFAULT),
+(NULL, 'Sala 1', 'San José', 12, 'Libre', DEFAULT),
+(NULL, 'Sala 2', 'San José', 16, 'Posgrado', DEFAULT),
+(NULL, 'Sala 3', 'San José', 6, 'Docente', DEFAULT),
+(NULL, 'Sala 1', 'Semprún', 6, 'Libre', DEFAULT),
+(NULL, 'Sala 2', 'Semprún', 6, 'Posgrado', DEFAULT),
+(NULL, 'Sala 3', 'Semprún', 10, 'Docente', DEFAULT),
+(NULL, 'Sala 1', 'Athanasius', 6, 'Libre', DEFAULT),
+(NULL, 'Sala 2', 'Athanasius', 10, 'Posgrado', DEFAULT),
+(NULL, 'Sala 3', 'Athanasius', 10, 'Docente', DEFAULT),
+(NULL, 'Sala 2', 'Central Salto', 6, 'Posgrado', DEFAULT),
+(NULL, 'Sala 3', 'Central Salto', 10, 'Docente', DEFAULT),
+(NULL, 'Sala 1', 'Central Salto', 6, 'Libre', DEFAULT),
+(NULL, 'Sala 2', 'Central Pta. del Este', 6, 'Posgrado', DEFAULT),
+(NULL, 'Sala 3', 'Central Pta. del Este', 10, 'Docente', DEFAULT),
+(NULL, 'Sala 1', 'Central Pta. del Este', 6, 'Libre', DEFAULT);
 
 INSERT INTO studyGroup VALUES
 (NULL, 'Grupo 1', 'Activo', 55897692),
@@ -344,7 +344,7 @@ INSERT INTO student VALUES
 (59283629, 6, 'Punta del Este'),
 (52435831, 6, 'Punta del Este'),
 (54729274, 3, 'Punta del Este'),
-(52737428, 9, 'Salto'),
+(52737428, 3, 'Salto'),
 (57389261, 4, 'Salto');
 
 INSERT INTO professor VALUES
