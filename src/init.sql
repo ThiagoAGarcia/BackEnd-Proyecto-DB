@@ -294,12 +294,7 @@ INSERT INTO studyGroup VALUES
 (NULL, 'Grupo 9', 'Activo', 57004718),
 (NULL, 'Grupo 10', 'Activo', 52737428),
 (NULL, 'Grupo 11', 'Activo', 57389261),
-(NULL, 'Grupo 12', 'Activo', 55897692),
-(NULL, 'Grupo 13', 'Activo', 55531973),
-(NULL, 'Grupo 14', 'Activo', 56309531),
-(NULL, 'Grupo 15', 'Activo', 55897692),
-(NULL, 'Grupo 16', 'Activo', 55531973),
-(NULL, 'Grupo 17', 'Activo', 56309531);
+(NULL, 'Grupo 12', 'Activo', 55897692);
 
 INSERT INTO studyGroupParticipant VALUES
 (1, 56309531),
