@@ -314,6 +314,18 @@ def cancelReservation(studyGroupId, studyRoomId, date, shiftId):
                 """, (groupParticipantCi,))
                 sanctions = True
 
+        if sanctions:
+            cursor.execute("""UPDATE reservation
+                SET state = 'Cancelada'
+                WHERE studyGroupId = %s AND studyRoomId = %s AND date = %s AND shiftId = %s""",
+                    (studyGroupId, studyRoomId, date, shiftId))
+            conn.commit()
+            conn.close()
+
+            return jsonify({
+                'success': True,
+                'description': 'la reserva fue cancelada pero todos los miembros han obtenido una sanción'
+            }), 200
 
         cursor.execute("""
             DELETE FROM reservation
