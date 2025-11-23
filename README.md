@@ -31,3 +31,7 @@
    docker-compose up --build
    ```
 ---
+
+
+USUARIO ADMIN:
+veronica.posadas@ucu.edu.uy
