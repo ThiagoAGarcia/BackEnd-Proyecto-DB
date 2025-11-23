@@ -33,6 +33,18 @@ CREATE TABLE career (
     FOREIGN KEY (facultyId) REFERENCES faculty(facultyId)
 );
 
+DELIMITER $$
+    CREATE TRIGGER validate_year_academicPlan
+    BEFORE INSERT ON career
+    FOR EACH ROW
+    BEGIN
+    IF NEW.planYear <= 1985 OR NEW.planYear > YEAR(CURDATE()) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'El año del plan debe estar entre 1985 y el año actual.';
+    END IF;
+    END$$
+DELIMITER ;
+
 CREATE TABLE login (
     mail VARCHAR(50) PRIMARY KEY,
     password VARCHAR(200) NOT NULL,
@@ -245,30 +257,30 @@ INSERT INTO shift VALUES
 (NULL, '22:00:00', '23:00:00');
 
 INSERT INTO studyRoom VALUES
-(NULL, 'Sala 1 Libre', 'Central', 6, 'Libre', DEFAULT),
-(NULL, 'Sala 2 Posgrado', 'Central', 8, 'Posgrado', DEFAULT),
-(NULL, 'Sala 3 Docente', 'Central', 14, 'Docente', DEFAULT),
-(NULL, 'Sala 1 Libre', 'San Ignacio', 20, 'Libre', DEFAULT),
-(NULL, 'Sala 2 Posgrado', 'San Ignacio', 8, 'Posgrado', DEFAULT),
-(NULL, 'Sala 3 Docente', 'San Ignacio', 6, 'Docente', DEFAULT),
-(NULL, 'Sala 1 Libre', 'Mullin', 8, 'Libre', DEFAULT),
-(NULL, 'Sala 2 Posgrado', 'Mullin', 6, 'Posgrado', DEFAULT),
-(NULL, 'Sala 3 Docente', 'Mullin', 10, 'Docente', DEFAULT),
-(NULL, 'Sala 1 Libre', 'San José', 12, 'Libre', DEFAULT),
-(NULL, 'Sala 2 Posgrado', 'San José', 16, 'Posgrado', DEFAULT),
-(NULL, 'Sala 3 Docente', 'San José', 6, 'Docente', DEFAULT),
-(NULL, 'Sala 1 Libre', 'Semprún', 6, 'Libre', DEFAULT),
-(NULL, 'Sala 2 Posgrado', 'Semprún', 6, 'Posgrado', DEFAULT),
-(NULL, 'Sala 3 Docente', 'Semprún', 10, 'Docente', DEFAULT),
-(NULL, 'Sala 1 Libre', 'Athanasius', 6, 'Libre', DEFAULT),
-(NULL, 'Sala 2 Posgrado', 'Athanasius', 10, 'Posgrado', DEFAULT),
-(NULL, 'Sala 3 Docente', 'Athanasius', 10, 'Docente', DEFAULT),
-(NULL, 'Sala 2 Posgrado', 'Central Salto', 6, 'Posgrado', DEFAULT),
-(NULL, 'Sala 3 Docente', 'Central Salto', 10, 'Docente', DEFAULT),
-(NULL, 'Sala 1 Libre', 'Central Salto', 6, 'Libre', DEFAULT),
-(NULL, 'Sala 2 Posgrado', 'Central Pta. del Este', 6, 'Posgrado', DEFAULT),
-(NULL, 'Sala 3 Docente', 'Central Pta. del Este', 10, 'Docente', DEFAULT),
-(NULL, 'Sala 1 Libre', 'Central Pta. del Este', 6, 'Libre', DEFAULT);
+(NULL, 'Sala 1', 'Central', 6, 'Libre', DEFAULT),
+(NULL, 'Sala 2', 'Central', 8, 'Posgrado', DEFAULT),
+(NULL, 'Sala 3', 'Central', 14, 'Docente', DEFAULT),
+(NULL, 'Sala 1', 'San Ignacio', 20, 'Libre', DEFAULT),
+(NULL, 'Sala 2', 'San Ignacio', 8, 'Posgrado', DEFAULT),
+(NULL, 'Sala 3', 'San Ignacio', 6, 'Docente', DEFAULT),
+(NULL, 'Sala 1', 'Mullin', 8, 'Libre', DEFAULT),
+(NULL, 'Sala 2', 'Mullin', 6, 'Posgrado', DEFAULT),
+(NULL, 'Sala 3', 'Mullin', 10, 'Docente', DEFAULT),
+(NULL, 'Sala 1', 'San José', 12, 'Libre', DEFAULT),
+(NULL, 'Sala 2', 'San José', 16, 'Posgrado', DEFAULT),
+(NULL, 'Sala 3', 'San José', 6, 'Docente', DEFAULT),
+(NULL, 'Sala 1', 'Semprún', 6, 'Libre', DEFAULT),
+(NULL, 'Sala 2', 'Semprún', 6, 'Posgrado', DEFAULT),
+(NULL, 'Sala 3', 'Semprún', 10, 'Docente', DEFAULT),
+(NULL, 'Sala 1', 'Athanasius', 6, 'Libre', DEFAULT),
+(NULL, 'Sala 2', 'Athanasius', 10, 'Posgrado', DEFAULT),
+(NULL, 'Sala 3', 'Athanasius', 10, 'Docente', DEFAULT),
+(NULL, 'Sala 2', 'Central Salto', 6, 'Posgrado', DEFAULT),
+(NULL, 'Sala 3', 'Central Salto', 10, 'Docente', DEFAULT),
+(NULL, 'Sala 1', 'Central Salto', 6, 'Libre', DEFAULT),
+(NULL, 'Sala 2', 'Central Pta. del Este', 6, 'Posgrado', DEFAULT),
+(NULL, 'Sala 3', 'Central Pta. del Este', 10, 'Docente', DEFAULT),
+(NULL, 'Sala 1', 'Central Pta. del Este', 6, 'Libre', DEFAULT);
 
 INSERT INTO studyGroup VALUES
 (NULL, 'Equipo Programación I', 'Inactivo', 55897692),
@@ -327,7 +339,7 @@ INSERT INTO student VALUES
 (59283629, 6, 'Punta del Este'),
 (52435831, 6, 'Punta del Este'),
 (54729274, 3, 'Punta del Este'),
-(52737428, 9, 'Salto'),
+(52737428, 3, 'Salto'),
 (57389261, 4, 'Salto');
 
 INSERT INTO professor VALUES
@@ -346,13 +358,13 @@ INSERT INTO librarian VALUES
 (18595003, 'Central Salto');
 
 INSERT INTO reservation VALUES
-(1, 4, '2025-11-24', 5, 32124436, '2024-04-26', 'Finalizada'),
-(2, 4, '2025-11-25', 6, 32124436, '2024-04-25', 'Finalizada'),
-(1, 4, '2025-11-26', 7, 32124436, '2024-05-15', 'Finalizada'),
-(5, 4, '2025-11-27', 9, 32124436, '2025-05-20', 'Finalizada'),
-(11, 7, '2025-11-09', 6, 32124436, '2025-06-07', 'Finalizada'),
-(4, 10, '2025-11-15', 5, 32124436, '2025-07-14', 'Finalizada'),
-(7, 7, '2025-11-31', 8, 32124436, '2025-10-27', 'Activa');
+(1, 4, '2024-04-29', 5, 32124436, '2024-04-26', 'Finalizada'),
+(2, 4, '2024-04-29', 6, 32124436, '2024-04-25', 'Finalizada'),
+(1, 4, '2024-05-17', 7, 32124436, '2024-05-15', 'Finalizada'),
+(5, 4, '2025-05-21', 9, 32124436, '2025-05-20', 'Finalizada'),
+(11, 7, '2025-06-09', 6, 32124436, '2025-06-07', 'Finalizada'),
+(4, 10, '2025-07-15', 5, 32124436, '2025-07-14', 'Finalizada'),
+(7, 7, '2025-10-31', 8, 32124436, '2025-10-27', 'Activa');
 
 INSERT INTO groupRequest VALUES
 (1, 56309531, 'Aceptada', FALSE, '2024-04-01 10:00:00'),
@@ -399,6 +411,7 @@ CREATE USER 'student_user'@'%' IDENTIFIED BY 'Student19976543!';
 CREATE USER 'professor_user'@'%' IDENTIFIED BY 'Professor19976543!';
 CREATE USER 'administrator_user'@'%' IDENTIFIED BY 'Admin19976543!';
 CREATE USER 'librarian_user'@'%' IDENTIFIED BY 'Librarian19976543!';
+
 
 # GRANTS UNKNOWN
 GRANT INSERT, SELECT ON ObligatorioBDD.login TO 'unknown_user'@'%';

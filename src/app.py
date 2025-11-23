@@ -1958,14 +1958,13 @@ def newReservationExpress():
         studyRoomId = data.get('studyRoomId')
         shiftId = data.get('shiftId')
 
-        today = date.today().strftime("%Y-%m-%d")
+        today = datetime.now().date()
 
         if today.weekday() >= 5:
             return jsonify({
                 'success': False,
                 'description': 'No se pueden realizar reservas para sábado o domingo'
             }), 400
-        
         if not all([studyGroupId, studyRoomId, shiftId]):
             return jsonify({
                 'success': False,
@@ -1992,7 +1991,7 @@ def newReservationExpress():
         if result:
             return jsonify({
                 'success': False,
-                'description': f"La persona {result['name']} {result['lastName']} tiene sanciones"
+                'description': f"La persona {result['name']} {result['lastname']} tiene sanciones"
             })
 
         # edificio del bibliotecario
@@ -3036,7 +3035,6 @@ def roomShiftToday(shiftId, roomId):
                 'success': False,
                 'description': 'No se pueden realizar reservas para sábado o domingo'
             }), 400
-    
         cursor.execute(
             "SELECT buildingName FROM librarian WHERE ci = %s",
             (request.ci,)
@@ -3524,14 +3522,12 @@ def getAvailableReservationsByDate():
                 r.studyGroupId AS studyGroupId,
                 r.assignedLibrarian AS librarian,
                 r.state AS state,
-                r.shiftId AS shift,
-                r.date,
-                r.studyRoomId
+                r.shiftId AS shift
             FROM reservation r
             JOIN shift s ON r.shiftId = s.shiftId
             JOIN studyRoom sR ON r.studyRoomId = sR.studyRoomId
             WHERE r.date = %s
-              AND r.assignedLibrarian IS NULL AND sR.buildingName = %s AND r.state = 'Activa';
+              AND r.assignedLibrarian IS NULL AND sR.buildingName = %s;;
             ''',
             (today, librarian_building)
         )
@@ -3555,13 +3551,11 @@ def getAvailableReservationsByDate():
                 "start": str(row['start']),
                 "end": str(row['end']),
                 "studyRoom": row['studyRoomName'],
-                "studyRoomId": row['studyRoomId'],
                 "building": row['building'],
                 "studyGroupId": row['studyGroupId'],
                 "assignedLibrarian": row['librarian'],
                 "state": row['state'],
-                "shift": row['shift'],
-                "date": row['date']
+                "shift": row['shift']
             })
 
          # Esto es para cuando una reserva tiene dos bloques de horario
@@ -3721,8 +3715,10 @@ def getFinishedManagedReservations():
             JOIN studyRoom sR ON r.studyRoomId = sR.studyRoomId
             WHERE r.date = %s
               AND r.assignedLibrarian = %s
-            AND r.state = 'Finalizada' OR r.state = 'Sin asistencia'        
-            ''', (today, ci))
+              AND r.state = 'Finalizada';
+            ''',
+            (today, ci)
+        )
 
         results = cursor.fetchall()
         reservations = []
@@ -3764,6 +3760,7 @@ def getFinishedManagedReservations():
             'description': 'No se pudo procesar la solicitud',
             'error': str(ex)
         }), 500
+
 
 # Asignarle un bibliotecario una reserva por medio de su cédula
 @app.route('/manageReservation', methods=['PATCH'])
@@ -3928,7 +3925,7 @@ def patchFinishedReservations():
             'error': str(ex)
         }), 500
     
-# Marcar una reserva sin asistencia
+#Marcar una reserva sin asistencia
 @app.route('/patchEmptyReservation', methods=['PATCH'])
 @token_required
 def patchEmptyReservation():
@@ -3944,36 +3941,34 @@ def patchEmptyReservation():
 
         data = request.get_json()
 
-        groupId = data.get('studyGroupId')
+        startDate = date.today().strftime("%Y-%m-%d")
+        groupId = data.get('groupId')
         studyRoomId = data.get('studyRoomId')
         shift = data.get('shift')
         members = data.get('members')
         librarianCi = request.ci
-        description = 'No asiste'
+        description = 'Imprudencia'
         endDate = data.get('endDate')
-        startDate = data.get('startDate')
-        today = date.today().strftime("%Y-%m-%d")
 
         cursor.execute(''' 
             UPDATE reservation
             SET state = 'Sin asistencia'
-            WHERE shiftId = %s AND date = %s AND studyGroupId = %s
-        ''', (shift, today, groupId,))
-        conn.commit()
+            WHERE shiftId = %s AND date = %s AND studyRoomId = %s AND studyGroupId = %s
+        ''', (shift, startDate, studyRoomId, groupId,))
 
         for groupParticipantCi in members: 
             is_active, msg = check_user_is_active(groupParticipantCi, request.role)
             if not is_active:
                 return jsonify({
                     "success": False,
-                    "description": msg,
+                    "description": msg
                 }), 403
 
             cursor.execute(''' 
                 INSERT INTO sanction VALUES
                 (NULL, %s, %s, %s, %s, %s)
 
-            ''', (groupParticipantCi, librarianCi, description, today, endDate,))
+            ''', (groupParticipantCi, librarianCi, description, startDate, endDate,))
 
         conn.commit()        
         cursor.close()
@@ -3987,11 +3982,8 @@ def patchEmptyReservation():
         return jsonify({
             'success': False,
             'description': 'No se pudo procesar la solicitud',
-            'error': str(ex),
-            'today': today
+            'error': str(ex)
         }), 500
-    
-# Enviar una sanción a
 
 
 # Conseguir todas las solicitudes de un usuario
