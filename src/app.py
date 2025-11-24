@@ -4142,14 +4142,13 @@ def patchEmptyReservation():
 
         data = request.get_json()
 
-        # startDate = date.today().strftime("%Y-%m-%d")
+        startDate = date.today().strftime("%Y-%m-%d")
         groupId = data.get('studyGroupId')
         studyRoomId = data.get('studyRoomId')
         shift = data.get('shift')
         members = data.get('members')
         librarianCi = request.ci
         description = 'No asiste'
-        startDate = data.get('startDate')
         endDate = data.get('endDate')
 
         datos = [startDate, groupId, studyRoomId, shift, librarianCi, description, endDate]
