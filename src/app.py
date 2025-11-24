@@ -3681,16 +3681,20 @@ def getAvailableReservationsByDate():
                 DATE_FORMAT(s.startTime, '%%H:%%i') AS start,
                 DATE_FORMAT(s.endTime, '%%H:%%i') AS end,
                 sR.roomName AS studyRoomName,
+                sR.studyRoomId AS studyRoomId,
                 sR.buildingName AS building,
                 r.studyGroupId AS studyGroupId,
                 r.assignedLibrarian AS librarian,
                 r.state AS state,
-                r.shiftId AS shift
+                r.shiftId AS shift,
+                r.date
             FROM reservation r
             JOIN shift s ON r.shiftId = s.shiftId
             JOIN studyRoom sR ON r.studyRoomId = sR.studyRoomId
             WHERE r.date = %s
-              AND r.assignedLibrarian IS NULL AND sR.buildingName = %s;;
+              AND r.assignedLibrarian IS NULL 
+              AND sR.buildingName = %s
+              AND r.state = 'Activa';
             ''',
             (today, librarian_building,)
         )
@@ -3703,11 +3707,13 @@ def getAvailableReservationsByDate():
                 "start": str(row['start']),
                 "end": str(row['end']),
                 "studyRoom": row['studyRoomName'],
+                "studyRoomId": row['studyRoomId'],
                 "building": row['building'],
                 "studyGroupId": row['studyGroupId'],
                 "assignedLibrarian": row['librarian'],
                 "state": row['state'],
-                "shift": row['shift']
+                "shift": row['shift'],
+                "date": row['date']
             })
 
          # Esto es para cuando una reserva tiene dos bloques de horario
@@ -3867,7 +3873,7 @@ def getFinishedManagedReservations():
             JOIN studyRoom sR ON r.studyRoomId = sR.studyRoomId
             WHERE r.date = %s
               AND r.assignedLibrarian = %s
-              AND r.state = 'Finalizada';
+              AND r.state = 'Finalizada' OR r.state = 'Sin asistencia';
             ''',
             (today, ci)
         )
@@ -4136,20 +4142,30 @@ def patchEmptyReservation():
 
         data = request.get_json()
 
-        startDate = date.today().strftime("%Y-%m-%d")
-        groupId = data.get('groupId')
+        # startDate = date.today().strftime("%Y-%m-%d")
+        groupId = data.get('studyGroupId')
         studyRoomId = data.get('studyRoomId')
         shift = data.get('shift')
         members = data.get('members')
         librarianCi = request.ci
-        description = 'Imprudencia'
+        description = 'No asiste'
+        startDate = data.get('startDate')
         endDate = data.get('endDate')
+
+        datos = [startDate, groupId, studyRoomId, shift, librarianCi, description, endDate]
 
         cursor.execute(''' 
             UPDATE reservation
             SET state = 'Sin asistencia'
             WHERE shiftId = %s AND date = %s AND studyRoomId = %s AND studyGroupId = %s
         ''', (shift, startDate, studyRoomId, groupId,))
+
+        if cursor.rowcount == 0:
+            return jsonify({
+                "success": False,
+                "description": "No existe una reserva para esos datos",
+                "datos": datos
+            }), 404
 
         for groupParticipantCi in members: 
             is_active, msg = check_user_is_active(groupParticipantCi, request.role)
