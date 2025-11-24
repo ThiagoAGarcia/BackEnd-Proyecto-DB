@@ -2424,12 +2424,12 @@ def getGroupMembers(groupId):
             FROM studyGroupParticipant sGP
             JOIN user u ON sGP.member = u.ci
             JOIN studyGroup sG on sGP.studyGroupId = sG.studyGroupId
-            WHERE sGP.studyGroupId = %s AND sG.status = 'Activo'
+            WHERE sGP.studyGroupId = %s
             UNION
             SELECT u.name AS name, u.lastName AS lastName, u.ci AS ci
             FROM studyGroup sG
             JOIN user u ON sG.leader = u.ci
-            WHERE studyGroupId = %s AND sG.status = 'Activo';
+            WHERE studyGroupId = %s;
         ''', (groupId, groupId,))
 
         results = cursor.fetchall()
