@@ -2048,6 +2048,7 @@ def newReservationExpress():
                 'success': False,
                 'description': 'No se pueden realizar reservas para sábado o domingo'
             }), 400
+
         if not all([studyGroupId, studyRoomId, shiftId]):
             return jsonify({
                 'success': False,

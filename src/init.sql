@@ -354,6 +354,8 @@ INSERT INTO groupRequest VALUES
 (3, 54729274, 'Rechazada', FALSE,'2024-05-01 14:00:00'),
 (5, 55531973, 'Rechazada', FALSE,'2024-05-02 15:30:00');
 
+INSERT INTO reservation VALUES
+(1, 1, '2025-11-24', 14, NULL, '2025-11-22', 'Activa');
 
 CREATE USER 'unknown_user'@'%' IDENTIFIED BY 'Unknown19976543!';
 CREATE USER 'student_user'@'%' IDENTIFIED BY 'Student19976543!';
