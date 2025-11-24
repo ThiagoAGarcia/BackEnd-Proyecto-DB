@@ -354,7 +354,6 @@ INSERT INTO groupRequest VALUES
 (3, 54729274, 'Rechazada', FALSE,'2024-05-01 14:00:00'),
 (5, 55531973, 'Rechazada', FALSE,'2024-05-02 15:30:00');
 
-
 CREATE USER 'unknown_user'@'%' IDENTIFIED BY 'Unknown19976543!';
 CREATE USER 'student_user'@'%' IDENTIFIED BY 'Student19976543!';
 CREATE USER 'professor_user'@'%' IDENTIFIED BY 'Professor19976543!';
