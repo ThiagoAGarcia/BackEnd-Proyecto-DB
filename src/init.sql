@@ -175,7 +175,7 @@ INSERT INTO user (ci, name, lastName, mail) VALUES
 (59283629, 'Diego', 'de Oliveira', 'diego.deoliveira@correo.ucu.edu.uy'),
 (52435831, 'Santiago', 'Blanco', 'santiago.blanco@correo.ucu.edu.uy'),
 (54729274, 'Lucia', 'Mallada', 'lucia.mallada@correo.ucu.edu.uy'),
-(52737428, 'Luana', 'Biurarrena', 'luana.biurarrena@correo.ucu.edu.uy'),
+(52737428, 'Luana', 'Biurrarena', 'luana.biurrarena@correo.ucu.edu.uy'),
 (57389261, 'Ramiro', 'Casco', 'ramiro.casco@correo.ucu.edu.uy'),
 (32124436, 'Lourdes', 'Machado', 'lourdes.machado@ucu.edu.uy'),
 (36907777, 'David', 'Liesegang', 'david.liesegang@ucu.edu.uy'),
@@ -219,7 +219,7 @@ INSERT INTO login VALUES
 ('diego.deoliveira@correo.ucu.edu.uy', '$2b$16$XwajVoE75BbZUDEf0aFsKuWIkDMudlreTmQ2uH1yeq.z5vCbbNbSG'), -- agostina2006
 ('santiago.blanco@correo.ucu.edu.uy', '$2b$16$XwajVoE75BbZUDEf0aFsKuWIkDMudlreTmQ2uH1yeq.z5vCbbNbSG'), -- agostina2006
 ('lucia.mallada@correo.ucu.edu.uy', '$2b$16$XwajVoE75BbZUDEf0aFsKuWIkDMudlreTmQ2uH1yeq.z5vCbbNbSG'), -- agostina2006
-('luana.biurarrena@correo.ucu.edu.uy', '$2b$16$XwajVoE75BbZUDEf0aFsKuWIkDMudlreTmQ2uH1yeq.z5vCbbNbSG'), -- agostina2006
+('luana.biurrarena@correo.ucu.edu.uy', '$2b$16$XwajVoE75BbZUDEf0aFsKuWIkDMudlreTmQ2uH1yeq.z5vCbbNbSG'), -- agostina2006
 ('ramiro.casco@correo.ucu.edu.uy', '$2b$16$XwajVoE75BbZUDEf0aFsKuWIkDMudlreTmQ2uH1yeq.z5vCbbNbSG'), -- agostina2006
 ('lourdes.machado@ucu.edu.uy', '$2b$16$XwajVoE75BbZUDEf0aFsKuWIkDMudlreTmQ2uH1yeq.z5vCbbNbSG'), -- agostina2006
 ('david.liesegang@ucu.edu.uy', '$2b$16$XwajVoE75BbZUDEf0aFsKuWIkDMudlreTmQ2uH1yeq.z5vCbbNbSG'), -- agostina2006
@@ -287,14 +287,7 @@ INSERT INTO studyGroup VALUES
 (NULL, 'Grupo 2', 'Activo', 55531973),
 (NULL, 'Grupo 3', 'Activo', 56309531),
 (NULL, 'Grupo 4', 'Activo', 57004718),
-(NULL, 'Grupo 5', 'Activo', 59283629),
-(NULL, 'Grupo 6', 'Activo', 52435831),
-(NULL, 'Grupo 7', 'Activo', 55897692),
-(NULL, 'Grupo 8', 'Activo', 36907777),
-(NULL, 'Grupo 9', 'Activo', 57004718),
-(NULL, 'Grupo 10', 'Activo', 52737428),
-(NULL, 'Grupo 11', 'Activo', 57389261),
-(NULL, 'Grupo 12', 'Activo', 55897692);
+(NULL, 'Grupo 5', 'Activo', 59283629);
 
 INSERT INTO studyGroupParticipant VALUES
 (1, 56309531),
@@ -306,28 +299,12 @@ INSERT INTO studyGroupParticipant VALUES
 (3, 55299080),
 (3, 56902752),
 (3, 59283629),
-(3, 55897692),
 (4, 55531973),
 (4, 56902752),
-(4, 56309531),
+(4, 54729274),
 (4, 55299080),
 (5, 52737428),
-(5, 57389261),
-(6, 55897692),
-(6, 55531973),
-(6, 56902752),
-(6, 57389261),
-(7, 55531973),
-(7, 57004718),
-(8, 54729274),
-(8, 34567836),
-(8, 45673829),
-(9, 56902752),
-(9, 55299080),
-(9, 52435831),
-(10, 54729274),
-(11, 52435831),
-(11, 54729274);
+(5, 57389261);
 
 INSERT INTO student VALUES
 (55897692, 6, 'Montevideo'),
@@ -357,16 +334,6 @@ INSERT INTO librarian VALUES
 (25081560, 'Central Pta. del Este'),
 (18595003, 'Central Salto');
 
-INSERT INTO reservation VALUES
-(1, 4, '2025-11-22', 12, NULL, '2025-11-18', 'Activa'),
-(2, 4, '2025-11-22', 10, NULL, '2024-11-18', 'Activa'),
-(3, 4, '2025-11-23', 11, NULL, '2024-11-21', 'Activa'),
-(4, 4, '2025-11-23', 13, NULL, '2025-11-21', 'Activa'),
-(5, 7, '2025-11-23', 12, NULL, '2025-11-26', 'Activa'),
-(6, 10, '2025-11-28', 11, NULL, '2025-11-26', 'Activa'),
-(7, 7, '2025-11-28', 13, NULL, '2025-11-26', 'Activa'),
-(8, 2, '2025-11-23', 11, NULL, '2025-11-21', 'Activa');
-
 INSERT INTO groupRequest VALUES
 (1, 56309531, 'Aceptada', FALSE, '2024-04-01 10:00:00'),
 (1, 59283629, 'Aceptada', FALSE,'2024-04-01 10:05:00'),
@@ -390,15 +357,6 @@ INSERT INTO groupRequest VALUES
 (6, 57389261, 'Aceptada', FALSE,'2024-04-06 15:15:00'),
 (7, 55531973, 'Aceptada', FALSE,'2024-04-07 16:00:00'),
 (7, 57004718, 'Aceptada', FALSE,'2024-04-07 16:05:00'),
-(8, 54729274, 'Aceptada', FALSE,'2024-04-08 17:00:00'),
-(8, 34567836, 'Aceptada', FALSE,'2024-04-08 17:05:00'),
-(8, 45673829, 'Aceptada', FALSE,'2024-04-08 17:10:00'),
-(9, 56902752, 'Aceptada', FALSE,'2024-04-09 18:00:00'),
-(9, 55299080, 'Aceptada', FALSE,'2024-04-09 18:05:00'),
-(9, 52435831, 'Aceptada', FALSE,'2024-04-09 18:10:00'),
-(10, 54729274, 'Aceptada', FALSE,'2024-04-10 19:00:00'),
-(11, 52435831, 'Aceptada', FALSE,'2024-04-11 20:00:00'),
-(11, 54729274, 'Aceptada', FALSE,'2024-04-11 20:05:00'),
 (3, 54729274, 'Rechazada', FALSE,'2024-05-01 14:00:00'),
 (5, 55531973, 'Rechazada', FALSE,'2024-05-02 15:30:00');
 
