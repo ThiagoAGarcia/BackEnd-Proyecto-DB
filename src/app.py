@@ -1823,8 +1823,8 @@ def newReservation():
 
         cursor.execute("""
             SELECT COUNT(*) AS totalRequests
-            FROM groupRequest
-            WHERE studyGroupId = %s AND status = 'Aceptada'
+            FROM studyGroupParticipant
+            WHERE studyGroupId = %s
         """, (studyGroupId,))
 
         req_total_row = cursor.fetchone()
@@ -1833,9 +1833,8 @@ def newReservation():
 
         cursor.execute("""
             SELECT COUNT(*) AS acceptedRequests
-            FROM groupRequest
+            FROM studyGroupParticipant
             WHERE studyGroupId = %s
-              AND status = 'Aceptada'
         """, (studyGroupId,))
 
         req_accepted_row = cursor.fetchone()
@@ -2559,8 +2558,8 @@ def sendGroupRequest():
 
             cursor.execute("""
                 SELECT COUNT(*) AS current_total
-                FROM groupRequest
-                WHERE studyGroupId = %s AND status = 'Aceptada'
+                FROM studyGroupParticipant
+                WHERE studyGroupId = %s
             """, (studyGroupId,))
 
             row = cursor.fetchone()
@@ -2625,9 +2624,9 @@ def sendGroupRequest():
             }), 400
 
         cursor.execute("""
-                    SELECT status FROM groupRequest 
-                    WHERE studyGroupId = %s AND receiver = %s
-                """, (studyGroupId, receiver))
+            SELECT status FROM groupRequest 
+            WHERE studyGroupId = %s AND receiver = %s
+        """, (studyGroupId, receiver))
 
         existing_request = cursor.fetchone()
 
@@ -2647,6 +2646,29 @@ def sendGroupRequest():
                 }), 400
 
             if status == "Aceptada":
+                cursor.execute("""
+                    SELECT *
+                    FROM studyGroupParticipant 
+                    WHERE studyGroupId = %s AND member = %s
+                """, (studyGroupId, receiver))
+
+                still_member = cursor.fetchone()
+
+                cursor.execute("""
+                    SELECT leader 
+                    FROM studyGroup 
+                    WHERE studyGroupId = %s
+                """, (studyGroupId,))
+
+                leader_row = cursor.fetchone()
+                is_leader = leader_row and leader_row["leader"] == receiver
+
+                if not still_member and not is_leader:
+                    return jsonify({
+                        "success": False,
+                        "description": "El integrante fue eliminado y no se le puede enviar invitación"
+                    }), 400
+
                 return jsonify({
                     "success": False,
                     "description": "El integrante ya está en el grupo"
@@ -2815,7 +2837,7 @@ def getFreeRooms(building, date):
             allowed_types.append('Docente')
 
         cursor.execute('''
-            SELECT 1
+            SELECT *
             FROM student st
             JOIN career c ON st.careerId = c.careerId
             WHERE st.ci = %s AND c.type = 'Posgrado'
@@ -2933,8 +2955,8 @@ def roomShift(selectedGroup, building, date, shiftId, roomId):
 
         cursor.execute("""
             SELECT COUNT(*) AS totalRequests
-            FROM groupRequest
-            WHERE studyGroupId = %s AND status = 'Aceptada'
+            FROM studyGroupParticipant
+            WHERE studyGroupId = %s
         """, (selectedGroup,))
 
         req_row = cursor.fetchone()
@@ -5199,8 +5221,8 @@ def acceptUserRequest(groupId):
 
             cursor.execute("""
                         SELECT COUNT(*) AS current_total
-                        FROM groupRequest
-                        WHERE studyGroupId = %s AND status = 'Aceptada'
+                        FROM studyGroupParticipant
+                        WHERE studyGroupId = %s
                     """, (groupId,))
 
             row = cursor.fetchone()
@@ -5384,7 +5406,7 @@ def deleteUserById(studyGroupId, userId):
         if not member:
             return jsonify({
                 "success": False,
-                "description": "El usuario fue no encontrado en este grupo"
+                "description": "El usuario no fue encontrado en este grupo"
             }), 404
 
         cursor.execute("""
@@ -5392,12 +5414,103 @@ def deleteUserById(studyGroupId, userId):
             WHERE studyGroupId = %s AND member = %s
         """, (studyGroupId, userId))
         conn.commit()
+
+        cursor.execute("""
+            SELECT COUNT(*) AS acceptedRequests
+            FROM studyGroupParticipant
+            WHERE studyGroupId = %s
+        """, (studyGroupId,))
+        requests = cursor.fetchone()
+
+        cursor.execute("""
+            SELECT sR.capacity AS CapacidadSala
+            FROM studyRoom sR
+            JOIN reservation r ON r.studyRoomId = sR.studyRoomId
+            WHERE r.studyGroupId = %s
+        """, (studyGroupId,))
+        cantidad = cursor.fetchone()
+
+        if not cantidad:
+            total_members = 0
+        else:
+            total_members = cantidad["CapacidadSala"]
+
+        members_count = requests["acceptedRequests"]
+        all_members = members_count + 1
+
+        required_minimum = (total_members + 1) // 2
+
+        cursor.execute("""
+            SELECT studyRoomId, date, shiftId
+            FROM reservation
+            WHERE studyGroupId = %s AND state = 'Activa'
+        """, (studyGroupId,))
+        reservation = cursor.fetchone()
+
+        reserva_eliminada = False
+        sanciones = False
+
+        if reservation:
+            studyRoomId_res = reservation["studyRoomId"]
+            date_res = reservation["date"]
+            shiftId_res = reservation["shiftId"]
+            requested_date = date_res
+            today = datetime.now(timezone.utc).date()
+
+            if all_members < required_minimum:
+                cursor.execute("""
+                    DELETE FROM reservation
+                    WHERE studyGroupId = %s 
+                    AND studyRoomId = %s 
+                    AND date = %s 
+                    AND shiftId = %s
+                """, (studyGroupId, studyRoomId_res, date_res, shiftId_res))
+
+                reserva_eliminada = True
+
+                if requested_date == today:
+                    cursor.execute("""
+                        SELECT DISTINCT u.ci
+                        FROM user u
+                        JOIN (
+                            SELECT leader AS ci
+                            FROM studyGroup
+                            WHERE studyGroupId = %s
+
+                            UNION
+
+                            SELECT member AS ci
+                            FROM studyGroupParticipant
+                            WHERE studyGroupId = %s
+                        ) AS g ON g.ci = u.ci
+                    """, (studyGroupId, studyGroupId))
+
+                    members = cursor.fetchall()
+
+                    for row in members:
+                        groupParticipantCi = row['ci']
+                        cursor.execute("""
+                            INSERT INTO sanction (ci, librarianCi, description, startDate, endDate)
+                            VALUES (%s, NULL, 'No Asiste', CURRENT_DATE(), DATE_ADD(CURRENT_DATE(), INTERVAL 2 MONTH))
+                        """, (groupParticipantCi,))
+
+                    sanciones = True
+
+                conn.commit()
+
         cursor.close()
         conn.close()
 
+        mensaje = f"Usuario {userId} eliminado correctamente del grupo."
+
+        if reserva_eliminada:
+            mensaje += " La reserva activa fue cancelada por quedar con menos del 50% del grupo."
+            if sanciones:
+                mensaje += " El grupo fue sancionado por cancelar el mismo día."
+
         return jsonify({
             "success": True,
-            "description": f"Usuario {userId} eliminado del grupo {studyGroupId} correctamente"
+            "description": mensaje
         }), 200
 
     except Exception as e:
@@ -5407,6 +5520,7 @@ def deleteUserById(studyGroupId, userId):
             "description": "Error al eliminar usuario del grupo",
             "error": str(e)
         }), 500
+
 
 # Conseguir todas las campus
 @app.route('/campus', methods=['GET'])
