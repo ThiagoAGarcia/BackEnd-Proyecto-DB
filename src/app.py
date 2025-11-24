@@ -3231,11 +3231,11 @@ def roomShiftToday(shiftId, roomId):
                       AND sh.shiftId NOT IN (
                         SELECT r.shiftId
                         FROM reservation r
-                        WHERE r.date = %s AND r.studyRoomId = sR.studyRoomId
+                        WHERE r.date = CURDATE() AND r.studyRoomId = sR.studyRoomId
                     )
                 )
                 ORDER BY Sala
-            ''', (building, today))
+            ''', (building))
 
             salas_libres = cursor.fetchall()
 
@@ -3251,11 +3251,11 @@ def roomShiftToday(shiftId, roomId):
                       AND sr.studyRoomId NOT IN (
                         SELECT r.studyRoomId
                         FROM reservation r
-                        WHERE r.date = %s AND r.shiftId = s.shiftId
+                        WHERE r.date = CURDATE() AND r.shiftId = s.shiftId
                     )
                 )
                 ORDER BY Inicio
-            ''', (building, today))
+            ''', (building))
 
             turnos_libres = cursor.fetchall()
 
@@ -4986,7 +4986,7 @@ def leaveGroup(groupId):
         ci = request.ci
         groupId = int(groupId)
 
-        is_active, msg = check_user_is_active(request.ci, request.role)
+        is_active, msg = check_user_is_active(ci, request.role)
         if not is_active:
             cursor.close()
             return jsonify({
@@ -4994,39 +4994,106 @@ def leaveGroup(groupId):
                 "description": msg
             }), 403
 
-
-
-        cursor.execute(''' 
-            SELECT sG.leader AS leader
-            FROM studyGroup sG
-            WHERE sG.studyGroupId = %s
-        ''', (groupId,))
+        cursor.execute("""
+            SELECT leader
+            FROM studyGroup
+            WHERE studyGroupId = %s
+        """, (groupId,))
         leaderData = cursor.fetchone()
-        leaderCi = leaderData['leader']
 
-        if ci == leaderCi:
+        if not leaderData:
+            return jsonify({"success": False, "description": "Grupo inexistente"}), 404
+
+        if ci == leaderData['leader']:
             return jsonify({
                 'success': False,
                 'description': 'No puedes abandonar un grupo del que eres líder'
             }), 401
-        
-        cursor.execute(''' 
-            DELETE FROM studyGroupParticipant sGP
-            WHERE sGP.member = %s AND sGP.studyGroupId = %s;
-        ''', (ci, groupId))
+
+        cursor.execute("""
+            SELECT COUNT(*) AS members
+            FROM studyGroupParticipant
+            WHERE studyGroupId = %s
+        """, (groupId,))
+        members_before = cursor.fetchone()["members"]
+
+        members_before = members_before + 1
+
+        members_after = members_before - 1
+
+        cursor.execute("""
+            SELECT 1
+            FROM reservation r
+            WHERE r.studyGroupId = %s AND r.state = 'Activa'
+        """, (groupId,))
+        reservation = cursor.fetchone()
+
+        sancion = False
+        reserva_eliminada = False
+
+        if reservation:
+
+            cursor.execute("""
+                SELECT sR.capacity as Capacidad
+                FROM studyRoom sR 
+                JOIN reservation r ON sR.studyRoomId = r.studyRoomId
+                WHERE r.studyGroupId = %s
+            """, (groupId,))
+            cositas = cursor.fetchone()
+
+            capacity = cositas["Capacidad"]
+            min_required = (capacity + 1) // 2
+
+            today = datetime.now(timezone.utc).date()
+
+            cursor.execute("""
+                            SELECT r.date as fecha
+                            FROM studyRoom sR 
+                            JOIN reservation r ON sR.studyRoomId = r.studyRoomId
+                            WHERE r.studyGroupId = %s
+                        """, (groupId,))
+            cosas = cursor.fetchone()
+
+            reservation_date = cosas["fecha"]
+
+            if members_before >= min_required and members_after < min_required:
+                cursor.execute("""
+                    DELETE FROM reservation
+                    WHERE studyGroupId = %s
+                """, (groupId,))
+                reserva_eliminada = True
+
+            if reservation_date <= today:
+                cursor.execute("""
+                    INSERT INTO sanction (ci, librarianCi, description, startDate, endDate)
+                    VALUES (%s, NULL, 'No Asiste', CURRENT_DATE(), DATE_ADD(CURRENT_DATE(), INTERVAL 2 MONTH))
+                """, (ci,))
+                sancion = True
+
+        cursor.execute("""
+            DELETE FROM studyGroupParticipant
+            WHERE member = %s AND studyGroupId = %s
+        """, (ci, groupId))
+
         conn.commit()
         cursor.close()
+        conn.close()
 
-        return jsonify({
-            'success': True, 
-            'description': 'Has abandonado el grupo'
-        }), 200
+        mensaje = "Has abandonado el grupo."
+
+        if reserva_eliminada:
+            mensaje += " La reserva fue cancelada por quedar con menos del 50%."
+        if sancion:
+            mensaje += " Se te aplicó una sanción por abandonar el mismo día."
+
+        return jsonify({"success": True, "description": mensaje}), 200
 
     except Exception as ex:
         return jsonify({
             'success': False,
             'description': 'No se pudo procesar la solicitud'
         }), 500
+
 
 
 @app.route('/group/<groupId>/info', methods=['GET'])
