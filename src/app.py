@@ -4985,7 +4985,7 @@ def leaveGroup(groupId):
         cursor = conn.cursor()
         ci = request.ci
         groupId = int(groupId)
-
+        mensaje = "Has abandonado el grupo."
         is_active, msg = check_user_is_active(ci, request.role)
         if not is_active:
             cursor.close()
@@ -5063,7 +5063,8 @@ def leaveGroup(groupId):
                 """, (groupId,))
                 reserva_eliminada = True
 
-            if reservation_date <= today:
+            if reservation_date <= today and members_before >= min_required and members_after < min_required:
+
                 cursor.execute("""
                     INSERT INTO sanction (ci, librarianCi, description, startDate, endDate)
                     VALUES (%s, NULL, 'No Asiste', CURRENT_DATE(), DATE_ADD(CURRENT_DATE(), INTERVAL 2 MONTH))
@@ -5079,12 +5080,10 @@ def leaveGroup(groupId):
         cursor.close()
         conn.close()
 
-        mensaje = "Has abandonado el grupo."
-
         if reserva_eliminada:
-            mensaje += " La reserva fue cancelada por quedar con menos del 50%."
+            mensaje = "Abandonaste el grupo y la reserva fue cancelada por quedar con menos del 50%."
         if sancion:
-            mensaje += " Se te aplicó una sanción por abandonar el mismo día."
+            mensaje = "Abandonaste el grupo y la reserva fue cancelada ademas que se te aplicó una sanción por abandonar el mismo día."
 
         return jsonify({"success": True, "description": mensaje}), 200
 
